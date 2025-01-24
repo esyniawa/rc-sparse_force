@@ -255,19 +255,33 @@ class PlanarArmDataLoader:
 
 # Example usage:
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_goals", type=int, default=200)
+    parser.add_argument("--num_init_thetas", type=int, default=500)
+    parser.add_argument("--num_t", type=int, default=110)
+    parser.add_argument("--wait_steps_after_trajectory", type=int, default=10)
+    parser.add_argument("--movement_duration", type=float, default=5.0)
+    args = parser.parse_args()
+
     # Create dataset
     dataset = PlanarArmDataset(
-        num_t=110,
-        wait_steps_after_trajectory=10,
-        num_init_thetas=100,
-        num_goals=50,
+        num_t=args.num_t,
+        wait_steps_after_trajectory=args.wait_steps_after_trajectory,
+        num_init_thetas=args.num_init_thetas,
+        num_goals=args.num_goals,
+        movement_duration=args.movement_duration,
         save_dir="arm_dataset"
     )
 
+    """
+    DEMO:
     # Create custom DataLoader
     dataloader = PlanarArmDataLoader(dataset, batch_size=32, shuffle=True)
 
     # Training loop
+    
     for epoch in range(3):  # Multiple epochs
         print(f"Epoch {epoch + 1}")
         for goal_idx, (inputs, targets) in enumerate(dataloader):
@@ -277,3 +291,5 @@ if __name__ == "__main__":
             print(f"Target shape: {targets.shape}")  # [32, 100, 2]
             #print(targets[0])
             break  # Just showing first batch
+            
+    """
