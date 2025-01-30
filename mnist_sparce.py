@@ -167,8 +167,8 @@ if __name__ == "__main__":
     num_epochs = 10
 
     # Create datasets
-    train_dataset = SequentialMNIST(root='./data', train=True)
-    test_dataset = SequentialMNIST(root='./data', train=False)
+    train_dataset = SequentialMNIST(root='./mnist_data', train=True)
+    test_dataset = SequentialMNIST(root='./mnist_data', train=False)
 
     # Create data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
