@@ -16,6 +16,7 @@ class PlanarArmDataset(Dataset):
                  num_goals: int = 50,
                  wait_steps_after_trajectory: int = 10,
                  movement_duration: float = 5.0,
+                 train_split: float = 0.8,
                  save_dir: Optional[str] = None):
         """
         Initialize the dataset for the planar arm.
@@ -47,6 +48,11 @@ class PlanarArmDataset(Dataset):
             self._load_dataset()
         else:
             self._generate_dataset()
+
+        # Split dataset into train and evaluation sets
+        self.train_split = train_split
+        self.train_goals = int(self.num_goals * train_split)
+        self.eval_goals = self.num_goals - self.train_goals
 
         # Create indices for sampling
         self._create_sampling_indices()
@@ -204,7 +210,13 @@ class PlanarArmDataset(Dataset):
 
 
 class PlanarArmDataLoader:
-    def __init__(self, dataset: PlanarArmDataset, batch_size: int, shuffle: bool = True):
+    train: str = 'train'
+    eval: str = 'eval'
+    def __init__(self,
+                 dataset: PlanarArmDataset,
+                 batch_size: int,
+                 mode: str,
+                 shuffle: bool = True):
         """
         Custom data loader for planar arm trajectories.
 
@@ -216,6 +228,16 @@ class PlanarArmDataLoader:
         self.batch_size = min(batch_size, dataset.num_init_thetas)  # Ensure batch size does not exceed num_init_thetas
         self.shuffle = shuffle
         self.goal_idx = 0
+
+        # Set goals range based on mode
+        if mode == self.train:
+            self.start_goal = 0
+            self.num_goals = dataset.train_goals
+        elif mode == self.eval:
+            self.start_goal = dataset.train_goals
+            self.num_goals = dataset.eval_goals
+        else:
+            raise ValueError(f"Mode must be either '{self.train}' or '{self.eval}'")
 
     def __iter__(self):
         """Return iterator over batches."""
@@ -259,10 +281,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_goals", type=int, default=200)
-    parser.add_argument("--num_init_thetas", type=int, default=500)
+    parser.add_argument("--num_init_thetas", type=int, default=200)
     parser.add_argument("--num_t", type=int, default=110)
     parser.add_argument("--wait_steps_after_trajectory", type=int, default=10)
     parser.add_argument("--movement_duration", type=float, default=5.0)
+    parser.add_argument("--save_dir", type=str, default="arm_dataset")
     args = parser.parse_args()
 
     # Create dataset
@@ -272,7 +295,7 @@ if __name__ == "__main__":
         num_init_thetas=args.num_init_thetas,
         num_goals=args.num_goals,
         movement_duration=args.movement_duration,
-        save_dir="arm_dataset"
+        save_dir=args.save_dir,
     )
 
     """
