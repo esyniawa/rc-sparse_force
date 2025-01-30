@@ -91,7 +91,7 @@ def train_evaluate_sparce_mnist(
             model.reset_state(batch_size)
 
             # Process each column of the images
-            for t in range(28):  # 28 time steps
+            for t in range(n_cols):  # 28 time steps
                 output = model(data[:, t, :])
 
             # Compute loss on final output
