@@ -1,53 +1,21 @@
 import torch
 import torch.nn as nn
-import numpy as np
 from typing import Optional
-import os
-from collections import deque
-
-
-def initialize_reservoir_weights(dim_reservoir: int,
-                                 probability_recurrent_connection: float,
-                                 spectral_radius: float,
-                                 normalize_eig_values: bool = True):
-    """
-    Initializes the reservoir weight matrix using sparse connectivity and spectral scaling
-    Returns:
-        torch.Tensor: Initialized weight matrix scaled to desired spectral radius
-    """
-
-    # Create sparse mask using bernoulli distribution
-    mask = (torch.rand(dim_reservoir, dim_reservoir) < probability_recurrent_connection).float()
-
-    # Initialize weights using normal distribution
-    weights = torch.randn(dim_reservoir, dim_reservoir) * \
-              torch.sqrt(torch.tensor(1.0 / (probability_recurrent_connection * dim_reservoir)))
-
-    # Apply mask to create sparse connectivity
-    W = mask * weights
-
-    # Scale matrix to desired spectral radius
-    if normalize_eig_values:
-        eigenvalues = torch.linalg.eigvals(W)
-        max_abs_eigenvalue = torch.max(torch.abs(eigenvalues))
-        W /= max_abs_eigenvalue
-
-    return W * spectral_radius
+from .utils import initialize_reservoir_weights, z_normalize
 
 
 class SpaRCeLoss:
-    def __init__(self, loss_type='mse'):
+    def __init__(self, loss_type: str = 'mse'):
         """
         Initialize SpaRCe loss function
-        Args:
-            loss_type: str, either 'mse' for mean squared error or
-                      'sigmoidal_cross_entropy' for classification tasks
+        :param loss_type: either 'mse' for mean squared error or 'sigmoidal_cross_entropy' for classification tasks
         """
         self.loss_type = loss_type
 
-    def __call__(self, output, target):
+    def __call__(self, output: torch.Tensor, target: torch.Tensor):
         if self.loss_type == 'mse':
             # Mean squared error (equation 3 in paper)
+            # They also mentioned Ridge regression as well
             return 0.5 * torch.mean((target - output) ** 2)
 
         elif self.loss_type == 'sigmoidal_cross_entropy':
@@ -80,7 +48,7 @@ class SpaRCeESN(nn.Module):
                      percentile_n: float = 75.0,  # n-th percentile for sparsity threshold
                      theta_tilde_init: str = 'zeros',  # 'zeros' or 'uniform'
                      # Training parameters
-                     learning_rate_threshold: float = 0.01,
+                     learning_rate_threshold: float = 0.001,  # Should be lower than learning_rate_readout
                      learning_rate_readout: float = 0.01,
                      seed: Optional[int] = None,
                      device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -182,11 +150,8 @@ class SpaRCeESN(nn.Module):
             return self.output
 
         def update_thresholds(self, target: torch.Tensor):
-            """Update thresholds using learning rule from paper
+            """Update thresholds using learning rule from paper with Z normalization. TODO: Maybe loss clipping?"""
 
-            Args:
-                target: One-hot encoded target tensor (batch_size, output_dim)
-            """
             # Get current output and sparse representation
             output = self.output  # shape: (batch_size, output_dim)
             x = self.x  # shape: (batch_size, reservoir_dim)
@@ -200,24 +165,28 @@ class SpaRCeESN(nn.Module):
                 # Get sign of reservoir activity for this sample
                 x_sign = torch.sign(self.V[b])
 
-                # Correlation term (equation B5) - increases thresholds for correlated neurons
-                # Sum over all output classes j and reservoir neurons l
-                delta_1 = 0
+                # Correlation term (equation B5)
+                # For each output dimension j
                 for j in range(self.dim_output):
-                    # Get l1 term
-                    l1 = x[b] * self.W_o[j]  # element-wise multiply
-                    # Get l2 term
-                    l2 = x[b] * self.W_o[j]
-                    delta_1 += torch.outer(l1, l2).sum(0)  # Sum over output dimension
-                delta_theta_1 += delta_1 * x_sign
+                    # W_jl x_l term - weighted outputs for all neurons
+                    weighted_outputs = x[b] * self.W_o[j]  # shape: (dim_reservoir,)
 
-                # Classification term (equation B6) - decreases thresholds that help correct class
+                    # W_jk sign(x_k) term - sign-weighted contribution
+                    sign_weighted = self.W_o[j] * x_sign  # shape: (dim_reservoir,)
+
+                    # Outer product to get correlation matrix
+                    delta_1 = torch.outer(weighted_outputs, sign_weighted).diagonal()
+
+                    # Sum over output dimension j
+                    delta_theta_1 += delta_1
+
+                # Classification term (equation B6)
                 correct_class = target[b].argmax()
                 delta_theta_2 -= self.W_o[correct_class] * x_sign
 
-            # Average over batch maybe normalization?
-            delta_theta_1 = delta_theta_1 / batch_size
-            delta_theta_2 = delta_theta_2 / batch_size
+            # Apply Z normalization to each delta term
+            delta_theta_1 = z_normalize(delta_theta_1)
+            delta_theta_2 = z_normalize(delta_theta_2)
 
             # Update thresholds
             with torch.no_grad():

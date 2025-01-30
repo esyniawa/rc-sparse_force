@@ -63,9 +63,10 @@ def train_evaluate_sparce_mnist(
                 break
             data = data.to(device)
             batch_size = data.size(0)
+            n_cols = data.size(1)
             model.reset_state(batch_size)
 
-            for t in range(28):  # Process each column
+            for t in range(n_cols):  # Process each column
                 V = model.forward_V(data[:, t, :])
                 V_batch.append(V)
 
@@ -141,12 +142,13 @@ def evaluate_sparce_mnist(
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             batch_size = data.size(0)
+            n_cols = data.size(1)
 
             # Reset reservoir state
             model.reset_state(batch_size)
 
             # Process each column
-            for t in range(28):
+            for t in range(n_cols):
                 output = model(data[:, t, :])
 
             # Compute accuracy
@@ -179,7 +181,7 @@ if __name__ == "__main__":
         dim_output=10,  # 10 digits
         percentile_n=50.0,  # As used in paper
         learning_rate_threshold=0.001,
-        learning_rate_readout=0.001
+        learning_rate_readout=0.01
     ).to(device)
 
     # Train and evaluate
