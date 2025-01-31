@@ -91,6 +91,10 @@ def train_evaluate_sparce_mnist(
 
     V_batch = torch.cat(V_batch, dim=0)
     model.compute_percentile_thresholds(V_batch)
+    # rm V_batch
+    del V_batch
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
 
     print("Starting training...")
     for epoch in range(num_epochs):
