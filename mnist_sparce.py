@@ -201,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=None, help='Random seed for reproducibility')
     parser.add_argument('--dim_res', type=int, default=1000, help='Reservoir dimension')
     parser.add_argument('--perc_n', type=float, default=75.0, help='Percentile threshold')
+    parser.add_argument('--prop_rec', type=float, default=1.0, help='Proportion of recurrent connections')
     parser.add_argument('--num_epochs', type=int, default=10, help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
     parser.add_argument('--device', type=str, default='cuda', help='Device (cpu or cuda)')
@@ -230,6 +231,7 @@ if __name__ == "__main__":
         dim_output=10,  # 10 digits
         mode='classification',
         percentile_n=args.perc_n,
+        probability_recurrent_connection=args.prop_rec,
         learning_rate_threshold=5e-4,
         learning_rate_readout=1e-3,
         seed=args.seed,
@@ -253,5 +255,5 @@ if __name__ == "__main__":
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy in %')
     plt.legend()
-    plt.savefig(f'mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}].pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.savefig(f'mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pdf', bbox_inches='tight', pad_inches=0.1)
     plt.close()
