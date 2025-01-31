@@ -196,3 +196,9 @@ class SpaRCeESN(nn.Module):
             # Update thresholds
             with torch.no_grad():
                 self.theta_tilde += self.lr_threshold * (delta_theta_1 + delta_theta_2)
+
+        def save_model(self, path: str):
+            torch.save(self.state_dict(), path)
+
+        def load_model(self, path: str):
+            self.load_state_dict(torch.load(path))

@@ -234,17 +234,8 @@ if __name__ == "__main__":
 
     # Define initial joint angles (in radians)
     initial_angles = np.array([np.pi / 4, np.pi / 3])
-    target = np.array([300, 150])
+    target = np.array([300, 200])
 
-    for _ in range(1000):
-
-        # Plan trajectory
-        joint_traj, cart_traj = arm.plan_trajectory(initial_angles, target)
-
-        # Calculate velocities and accelerations (assuming 2-second movement)
-        velocities = arm.get_trajectory_velocities(joint_traj, duration=2.0)
-
-    """
     # Generate trajectory
     joint_traj, cart_traj = arm.plan_trajectory(initial_angles, target)
     
@@ -270,8 +261,8 @@ if __name__ == "__main__":
 
     # Plot joint angles
     plt.subplot(132)
-    plt.plot(joint_traj[:, 0], label='θ1')
-    plt.plot(joint_traj[:, 1], label='θ2')
+    plt.plot(joint_traj[:, 0], label='$\\theta_{shoulder}$')
+    plt.plot(joint_traj[:, 1], label='$\\theta_{elbow}$')
     plt.grid(True)
     plt.xlabel('Time step')
     plt.ylabel('Angle [rad]')
@@ -280,8 +271,8 @@ if __name__ == "__main__":
 
     # Plot velocities
     plt.subplot(133)
-    plt.plot(velocities[:, 0], label='θ1_dot')
-    plt.plot(velocities[:, 1], label='θ2_dot')
+    plt.plot(velocities[:, 0], label='$\\dot{\\theta}_{shoulder}$')
+    plt.plot(velocities[:, 1], label='$\\dot{\\theta}_{elbow}$')
     plt.grid(True)
     plt.xlabel('Time step')
     plt.ylabel('Angular velocity [rad/s]')
@@ -290,4 +281,3 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
-    """
