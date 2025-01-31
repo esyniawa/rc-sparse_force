@@ -300,20 +300,31 @@ if __name__ == "__main__":
     )
 
     """
-    DEMO:
-    # Create custom DataLoader
-    dataloader = PlanarArmDataLoader(dataset, batch_size=32, shuffle=True)
-
-    # Training loop
+    # DEMO:
     
-    for epoch in range(3):  # Multiple epochs
-        print(f"Epoch {epoch + 1}")
-        for goal_idx, (inputs, targets) in enumerate(dataloader):
-            print(f"Goal {goal_idx + 1}:")
-            print(f"Input shape: {inputs.shape}")  # [32, 100, 4]
-            #print(inputs[0])
-            print(f"Target shape: {targets.shape}")  # [32, 100, 2]
-            #print(targets[0])
-            break  # Just showing first batch
+    dataset = PlanarArmDataset(
+    num_t=100,
+    num_init_thetas=1000,
+    num_goals=50,
+    train_split=0.8  # 80% training, 20% evaluation
+    )
+
+    train_loader = PlanarArmDataLoader(dataset, batch_size=32, mode='train')
+    eval_loader = PlanarArmDataLoader(dataset, batch_size=32, mode='eval')
+    
+    # Training loop
+    for epoch in range(num_epochs):
+        # Train
+        for inputs, targets in train_loader:
+            # Training step
+            inputs.shape # (batch_size, num_t, 4)
+            targets.shape # (batch_size, num_t, 2)
+            
+        # Evaluate
+        for inputs, targets in eval_loader:
+            # Evaluation step
+            outputs = model(inputs)
+            # Rescale
+            pred_targets = dataset.inverse_transform_targets(outputs)
             
     """
