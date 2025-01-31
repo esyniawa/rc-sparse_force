@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -247,6 +249,8 @@ if __name__ == "__main__":
     )
 
     print(f"Final test accuracy: {test_accs[-1]:.2f}%")
+    results_folder = 'results'
+    os.makedirs(results_folder, exist_ok=True)
 
     # Plot training and test accuracy
     plt.figure(figsize=(10, 6))
@@ -255,5 +259,5 @@ if __name__ == "__main__":
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy in %')
     plt.legend()
-    plt.savefig(f'mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.savefig(f'{results_folder}/mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pdf', bbox_inches='tight', pad_inches=0.1)
     plt.close()
