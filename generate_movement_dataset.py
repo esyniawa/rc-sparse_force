@@ -26,6 +26,7 @@ class PlanarArmDataset(Dataset):
         :param num_goals: Number of target positions
         :param wait_steps_after_trajectory: Number of time steps to wait after each trajectory
         :param movement_duration: Duration of the movement in seconds (for generating velocities)
+        :param train_split: Fraction of the dataset to use for training
         :param save_dir: Directory to save / load the dataset
         """
 

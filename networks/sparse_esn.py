@@ -34,8 +34,8 @@ class SpaRCeESN(nn.Module):
                      dim_reservoir: int,
                      dim_input: int,
                      dim_output: int,
+                     mode: str,
                      # Reservoir parameters
-                     history_capacity: int = 100,
                      tau: float = 0.01,
                      dt: float = 0.001,
                      noise_scaling: float = 0.0,
@@ -54,10 +54,13 @@ class SpaRCeESN(nn.Module):
                      device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
             super().__init__()
 
+            assert mode in ('regression', 'classification'), "Mode must be either 'regression' or 'classification'"
             assert 0 <= percentile_n <= 100, "Percentile must be between 0 and 100"
 
             if seed is not None:
                 torch.manual_seed(seed)
+
+            self.mode = mode
 
             # Dimensions
             self.dim_reservoir = dim_reservoir
@@ -78,7 +81,7 @@ class SpaRCeESN(nn.Module):
                                                       probability_recurrent_connection=probability_recurrent_connection,
                                                       spectral_radius=spectral_radius).to(device)
             self.W_in = (torch.empty(dim_reservoir, dim_input).uniform_(-1, 1) * feedforward_scaling).to(device)
-            self.W_o = nn.Parameter(torch.zeros(dim_output, dim_reservoir)).to(device)
+            self.W_o = nn.Parameter(torch.zeros(dim_output, dim_reservoir)).to(device)  # Learnable output weights
 
             # Initialize thresholds
             self.register_buffer('P_n', torch.zeros(dim_reservoir))  # Fixed percentile component
@@ -181,12 +184,14 @@ class SpaRCeESN(nn.Module):
                     delta_theta_1 += delta_1
 
                 # Classification term (equation B6)
-                correct_class = target[b].argmax()
-                delta_theta_2 -= self.W_o[correct_class] * x_sign
+                if self.mode == 'classification':
+                    correct_class = target[b].argmax()
+                    delta_theta_2 -= self.W_o[correct_class] * x_sign
 
             # Apply Z normalization to each delta term
             delta_theta_1 = z_normalize(delta_theta_1)
-            delta_theta_2 = z_normalize(delta_theta_2)
+            if self.mode == 'classification':
+                delta_theta_2 = z_normalize(delta_theta_2)
 
             # Update thresholds
             with torch.no_grad():
