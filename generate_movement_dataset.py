@@ -286,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_t", type=int, default=110)
     parser.add_argument("--wait_steps_after_trajectory", type=int, default=10)
     parser.add_argument("--movement_duration", type=float, default=5.0)
-    parser.add_argument("--save_dir", type=str, default="arm_dataset")
+    parser.add_argument("--save_dir", type=str, default="arm_data")
     args = parser.parse_args()
 
     # Create dataset
