@@ -201,9 +201,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=None, help='Random seed for reproducibility')
+    parser.add_argument('--sim_id', type=int, default=0, help='Simulation id')
     parser.add_argument('--dim_res', type=int, default=1000, help='Reservoir dimension')
     parser.add_argument('--perc_n', type=float, default=75.0, help='Percentile threshold')
-    parser.add_argument('--prop_rec', type=float, default=1.0, help='Proportion of recurrent connections')
+    parser.add_argument('--prop_rec', type=float, default=0.01, help='Proportion of recurrent connections')
+    parser.add_argument('--spectral_radius', type=float, default=0.97, help='Spectral radius')
+    parser.add_argument('--ff_scale', type=float, default=0.1, help='Scale of feedforward connections')
+    parser.add_argument('--alpha', type=float, default=0.17, help='Alpha parameter for leaky integrator')
     parser.add_argument('--num_epochs', type=int, default=10, help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
     parser.add_argument('--device', type=str, default='cuda', help='Device (cpu or cuda)')
@@ -234,10 +238,14 @@ if __name__ == "__main__":
         mode='classification',
         percentile_n=args.perc_n,
         probability_recurrent_connection=args.prop_rec,
+        spectral_radius=args.spectral_radius,
         learning_rate_threshold=5e-4,
         learning_rate_readout=1e-3,
+        feedforward_scaling=args.ff_scale,
+        alpha=args.alpha,
         seed=args.seed,
-    ).to(device)
+        device=device,
+    )
 
     # Train and evaluate
     train_accs, test_accs = train_evaluate_sparce_mnist(
@@ -249,7 +257,7 @@ if __name__ == "__main__":
     )
 
     print(f"Final test accuracy: {test_accs[-1]:.2f}%")
-    results_folder = 'results'
+    results_folder = f'results/simulation_{args.sim_id}'
     os.makedirs(results_folder, exist_ok=True)
 
     # Plot training and test accuracy
@@ -261,3 +269,12 @@ if __name__ == "__main__":
     plt.legend()
     plt.savefig(f'{results_folder}/mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pdf', bbox_inches='tight', pad_inches=0.1)
     plt.close()
+
+    # Save parameters
+    with open(f'{results_folder}/mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].txt', 'w') as f:
+        f.write(f"Final test accuracy: {test_accs[-1]:.2f}%\n")
+        for name, value in vars(args).items():
+            f.write(f"{name}: {value}\n")
+
+    # Save model
+    model.save_model(f'{results_folder}/mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pth')

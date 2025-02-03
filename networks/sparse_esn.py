@@ -36,8 +36,7 @@ class SpaRCeESN(nn.Module):
                      dim_output: int,
                      mode: str,
                      # Reservoir parameters
-                     tau: float = 0.01,
-                     dt: float = 0.001,
+                     alpha: float = 0.1,  # leakage term
                      noise_scaling: float = 0.0,
                      f_activation_func: torch.nn.Module = nn.Tanh(),
                      x_activation_func: torch.nn.Module = nn.ReLU(),
@@ -68,7 +67,7 @@ class SpaRCeESN(nn.Module):
             self.dim_output = dim_output
 
             # Model parameters
-            self.alpha = dt / tau  # leakage term
+            self.alpha = alpha
             self.device = device
             self.percentile_n = percentile_n
             self.f_activation = f_activation_func
