@@ -7,6 +7,21 @@ import os
 from typing import Tuple, Optional
 from kinematics.planar_arm import PlanarArmTrajectory
 from tqdm.auto import tqdm
+import argparse
+
+
+def get_dataset_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_goals", type=int, default=200)
+    parser.add_argument("--num_init_thetas", type=int, default=200)
+    parser.add_argument("--num_t", type=int, default=110)
+    parser.add_argument("--wait_steps_after_trajectory", type=int, default=10)
+    parser.add_argument("--movement_duration", type=float, default=5.0)
+    parser.add_argument("--save_dir", type=str, default="arm_data")
+    parser.add_argument("--train_split", type=float, default=0.8)
+    args = parser.parse_args()
+
+    return args
 
 
 class PlanarArmDataset(Dataset):
@@ -278,16 +293,7 @@ class PlanarArmDataLoader:
 
 # Example usage:
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--num_goals", type=int, default=200)
-    parser.add_argument("--num_init_thetas", type=int, default=200)
-    parser.add_argument("--num_t", type=int, default=110)
-    parser.add_argument("--wait_steps_after_trajectory", type=int, default=10)
-    parser.add_argument("--movement_duration", type=float, default=5.0)
-    parser.add_argument("--save_dir", type=str, default="arm_data")
-    args = parser.parse_args()
+    args = get_dataset_parser()
 
     # Create dataset
     dataset = PlanarArmDataset(
@@ -296,6 +302,7 @@ if __name__ == "__main__":
         num_init_thetas=args.num_init_thetas,
         num_goals=args.num_goals,
         movement_duration=args.movement_duration,
+        train_split=args.train_split,
         save_dir=args.save_dir,
     )
 
