@@ -1,5 +1,4 @@
 import os
-
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -8,6 +7,40 @@ from torchvision import transforms
 import numpy as np
 from typing import Tuple, Optional
 from networks.sparse_esn import SpaRCeESN, SpaRCeLoss
+import argparse
+
+
+def get_training_args():
+    parser = argparse.ArgumentParser(description='Train SpaRCe for sequential MNIST')
+
+    # Model parameters
+    parser.add_argument('--dim_res', type=int, default=1000,
+                        help='Reservoir dimension')
+    parser.add_argument('--perc_n', type=float, default=75.0,
+                        help='Percentile threshold')
+    parser.add_argument('--prop_rec', type=float, default=0.01,
+                        help='Proportion of recurrent connections')
+    parser.add_argument('--spectral_radius', type=float, default=0.97,
+                        help='Spectral radius')
+    parser.add_argument('--ff_scale', type=float, default=0.1,
+                        help='Scale of feedforward connections')
+    parser.add_argument('--alpha', type=float, default=0.17,
+                        help='Alpha parameter for leaky integrator')
+
+    # Training parameters
+    parser.add_argument('--sim_id', type=int, default=0,
+                        help='Simulation id')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='Random seed for reproducibility')
+    parser.add_argument('--num_epochs', type=int, default=10,
+                        help='Number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=32,
+                        help='Batch size for training')
+    parser.add_argument('--device', type=str, default='cuda',
+                        help='Device (cpu or cuda)')
+    args = parser.parse_args()
+
+    return args
 
 
 class SequentialMNIST(Dataset):
@@ -68,7 +101,7 @@ def train_evaluate_sparce_mnist(
         mode='max',  # Monitor accuracy
         factor=0.5,  # reduce lr by half
         patience=2,  # Wait 2 epochs
-        min_lr=1e-6
+        min_lr=1e-7
     )
 
     # Lists to store training and test accuracies
@@ -197,21 +230,8 @@ def evaluate_sparce_mnist(
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--seed', type=int, default=None, help='Random seed for reproducibility')
-    parser.add_argument('--sim_id', type=int, default=0, help='Simulation id')
-    parser.add_argument('--dim_res', type=int, default=1000, help='Reservoir dimension')
-    parser.add_argument('--perc_n', type=float, default=75.0, help='Percentile threshold')
-    parser.add_argument('--prop_rec', type=float, default=0.01, help='Proportion of recurrent connections')
-    parser.add_argument('--spectral_radius', type=float, default=0.97, help='Spectral radius')
-    parser.add_argument('--ff_scale', type=float, default=0.1, help='Scale of feedforward connections')
-    parser.add_argument('--alpha', type=float, default=0.17, help='Alpha parameter for leaky integrator')
-    parser.add_argument('--num_epochs', type=int, default=10, help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
-    parser.add_argument('--device', type=str, default='cuda', help='Device (cpu or cuda)')
-    args = parser.parse_args()
+    args = get_training_args()
 
     # Set device and hyperparameters
     if args.device == 'cuda' and torch.cuda.is_available():
@@ -239,8 +259,8 @@ if __name__ == "__main__":
         percentile_n=args.perc_n,
         probability_recurrent_connection=args.prop_rec,
         spectral_radius=args.spectral_radius,
-        learning_rate_threshold=5e-4,
-        learning_rate_readout=1e-3,
+        learning_rate_threshold=5e-5,
+        learning_rate_readout=1e-4,
         feedforward_scaling=args.ff_scale,
         alpha=args.alpha,
         seed=args.seed,
@@ -257,7 +277,7 @@ if __name__ == "__main__":
     )
 
     print(f"Final test accuracy: {test_accs[-1]:.2f}%")
-    results_folder = f'results/simulation_{args.sim_id}'
+    results_folder = f'results/MNIST_simulation_{args.sim_id}'
     os.makedirs(results_folder, exist_ok=True)
 
     # Plot training and test accuracy
