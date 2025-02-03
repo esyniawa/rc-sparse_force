@@ -26,6 +26,7 @@ def get_dataset_parser():
 
 class PlanarArmDataset(Dataset):
     def __init__(self,
+                 arm: str = 'right',
                  num_t: int = 100,
                  num_init_thetas: int = 100,
                  num_goals: int = 50,
@@ -53,7 +54,7 @@ class PlanarArmDataset(Dataset):
         self.save_dir = save_dir
 
         # Initialize arm trajectory planner
-        self.arm = PlanarArmTrajectory(num_ik_points=20, num_trajectory_points=num_t)
+        self.arm = PlanarArmTrajectory(arm=arm, num_ik_points=20, num_trajectory_points=num_t)
 
         # Initialize scalers
         self.input_scaler = MinMaxScaler(feature_range=(-1, 1))
@@ -112,7 +113,7 @@ class PlanarArmDataset(Dataset):
         # Calculate end-effector positions for these angles
         goals = []
         for t1, t2 in zip(theta1, theta2):
-            pos = self.arm.forward_kinematics('right', np.array([t1, t2]), radians=True)
+            pos = self.arm.forward_kinematics(np.array([t1, t2]), radians=True)
             goals.append(pos[:, -1])
 
         return np.array(goals)
@@ -136,7 +137,7 @@ class PlanarArmDataset(Dataset):
                                  leave=False):
 
                 # Generate trajectory
-                joint_traj, _ = self.arm.plan_trajectory(theta, goal, waiting_steps=self.wait_steps)
+                joint_traj, _ = self.arm.plan_trajectory(current_angles=theta, target_coord=goal, waiting_steps=self.wait_steps)
 
                 # Calculate velocities (targets)
                 velocities = self.arm.get_trajectory_velocities(joint_traj)
