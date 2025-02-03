@@ -29,25 +29,24 @@ class PlanarArm:
     upper_arm_length = scale * 220.0  # in [mm]
     forearm_length = scale * 160.0  # in [mm]
 
-    @staticmethod
-    def forward_kinematics(arm: str, thetas: np.ndarray, radians: bool = False, check_limits: bool = True):
+    def __init__(self, arm: str = 'right'):
+        assert arm in ['left', 'right'], 'Arm must be "left" or "right"'
+
+        self.arm = arm
+        const = 1 if arm == 'right' else -1
+        # shoulder translation
+        self.A0 = create_dh_matrix(a=const * PlanarArm.shoulder_length, d=0, alpha=0, theta=0)
+
+    def forward_kinematics(self, thetas: np.ndarray, radians: bool = False, check_limits: bool = True):
 
         if check_limits:
             theta1, theta2 = PlanarArm.check_values(thetas, radians)
         else:
             theta1, theta2 = thetas
 
-        if arm == 'right':
-            const = 1
-        elif arm == 'left':
-            const = -1
+        if self.arm == 'left':
             theta1 = np.pi - theta1
-            theta2 = - theta2
-        else:
-            raise ValueError('Please specify if the arm is right or left!')
-
-        A0 = create_dh_matrix(a=const * PlanarArm.shoulder_length, d=0,
-                              alpha=0, theta=0)
+            theta2 = -theta2
 
         A1 = create_dh_matrix(a=PlanarArm.upper_arm_length, d=0,
                               alpha=0, theta=theta1)
@@ -56,14 +55,14 @@ class PlanarArm:
                               alpha=0, theta=theta2)
 
         # Shoulder -> elbow
-        A01 = A0 @ A1
+        A01 = self.A0 @ A1
         # Elbow -> hand
         A12 = A01 @ A2
 
-        return np.column_stack(([0, 0], A0[:2, 3], A01[:2, 3], A12[:2, 3]))
+        return np.column_stack(([0, 0], self.A0[:2, 3], A01[:2, 3], A12[:2, 3]))
 
-    @staticmethod
-    def inverse_kinematics(end_effector: np.ndarray,
+    def inverse_kinematics(self,
+                           end_effector: np.ndarray,
                            starting_angles: np.ndarray,
                            max_iterations: int = 1_000,
                            abort_criteria: float = 1e-6,
@@ -73,7 +72,7 @@ class PlanarArm:
             starting_angles = np.radians(starting_angles)
 
         def objective(thetas):
-            current_position = PlanarArm.forward_kinematics(arm='right', thetas=thetas, radians=True, check_limits=False)[:, -1]
+            current_position = self.forward_kinematics(thetas=thetas, radians=True, check_limits=False)[:, -1]
             position_error = np.linalg.norm(current_position - end_effector) ** 2
 
             # Add a term to penalize large changes from the starting angles
@@ -130,16 +129,16 @@ class PlanarArm:
 
 
 class PlanarArmTrajectory(PlanarArm):
-    def __init__(self, num_ik_points: int = 20, num_trajectory_points: int = 200):
+    def __init__(self, arm: str = 'right', num_ik_points: int = 20, num_trajectory_points: int = 200):
         """
         Initialize the trajectory planner for the planar arm.
-
+        :param arm: Arm to plan for
         :param num_ik_points: Number of points to calculate using inverse kinematics
         :param num_trajectory_points: Number of points in the final trajectory after interpolation
         """
         self.num_ik_points = num_ik_points
         self.num_trajectory_points = num_trajectory_points
-        super().__init__()
+        super().__init__(arm=arm)
 
     @staticmethod
     def minimum_jerk_trajectory(t):
@@ -164,7 +163,7 @@ class PlanarArmTrajectory(PlanarArm):
         current_angles = self.check_values(current_angles, radians=True)
 
         # Get current end-effector position
-        current_pos = self.forward_kinematics('right', current_angles, radians=True)[:, -1]
+        current_pos = self.forward_kinematics(current_angles, radians=True)[:, -1]
 
         # Create minimum-jerk trajectory in Cartesian space
         t_ik = np.linspace(0, 1, self.num_ik_points)
@@ -200,7 +199,7 @@ class PlanarArmTrajectory(PlanarArm):
         # Calculate corresponding Cartesian positions for dense trajectory
         cartesian_trajectory = np.zeros((self.num_trajectory_points, 2))
         for i in range(self.num_trajectory_points):
-            positions = self.forward_kinematics('right', joint_trajectory[i], radians=True)
+            positions = self.forward_kinematics(joint_trajectory[i], radians=True)
             cartesian_trajectory[i] = positions[:, -1]
 
         # Add waiting period at the start
@@ -230,7 +229,7 @@ class PlanarArmTrajectory(PlanarArm):
 
 # Example usage:
 if __name__ == "__main__":
-    arm = PlanarArmTrajectory(num_ik_points=10, num_trajectory_points=100)
+    arm = PlanarArmTrajectory(arm='left', num_ik_points=10, num_trajectory_points=100)
 
     # Define initial joint angles (in radians)
     initial_angles = np.array([np.pi / 4, np.pi / 3])
