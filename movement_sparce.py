@@ -1,7 +1,7 @@
 import argparse
 import torch
 import numpy as np
-from networks.sparse_esn import SpaRCeESN, SpaRCeLoss
+from networks.sparse_esn import SpaRCeESN, SpaRCeLoss, mse_loss
 from generate_movement_dataset import PlanarArmDataset, PlanarArmDataLoader
 
 
@@ -99,11 +99,13 @@ def train_evaluate_sparce_arm(
                 break
             data = data.to(device)
             batch_size = data.size(0)
+            n_steps = data.size(1)
             model.reset_state(batch_size)
 
             # Process full trajectory
-            V = model.forward_V(data)
-            V_batch.append(V)
+            for t in range(n_steps):
+                V = model.forward_V(data[:, t, :])
+                V_batch.append(V)
 
     V_batch = torch.cat(V_batch, dim=0)
     model.compute_percentile_thresholds(V_batch)
@@ -120,27 +122,30 @@ def train_evaluate_sparce_arm(
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
             batch_size = data.size(0)
+            n_steps = data.size(1)
+            batch_mse = 0
 
             # Reset reservoir state
             model.reset_state(batch_size)
+            for t in range(n_steps):
+                # Forward pass
+                output = model(data[:, t, :])
 
-            # Forward pass
-            output = model(data)
+                # Compute MSE loss
+                loss = criterion(output, target[:, t, :])
+                batch_mse += loss.item()
 
-            # Compute MSE loss
-            loss = criterion(output, target)
+                # Backward pass
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.W_o, max_norm=1.0)
+                optimizer.step()
 
-            # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.W_o, max_norm=1.0)
-            optimizer.step()
-
-            # Update thresholds
-            model.update_thresholds(target)
+                # Update thresholds
+                model.update_thresholds(target[:, t, :])
 
             # Track MSE
-            total_mse += loss.item()
+            total_mse += batch_mse
             num_batches += 1
 
             if (batch_idx + 1) % print_interval == 0:
@@ -179,16 +184,21 @@ def evaluate_sparce_arm(
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             batch_size = data.size(0)
+            n_steps = data.size(1)
+            batch_mse = 0
 
             # Reset reservoir state
             model.reset_state(batch_size)
 
-            # Forward pass
-            output = model(data)
+            for t in range(n_steps):
+                # Forward pass
+                output = model(data)
 
-            # Compute MSE
-            mse = ((target - output) ** 2).mean().item()
-            total_mse += mse
+                # Compute MSE
+                mse = mse_loss(output, target).item()
+                batch_mse += mse
+
+            total_mse += batch_mse
             num_batches += 1
 
     return total_mse / num_batches

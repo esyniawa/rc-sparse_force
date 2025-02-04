@@ -4,6 +4,10 @@ from typing import Optional
 from .utils import initialize_reservoir_weights, z_normalize
 
 
+def mse_loss(output: torch.Tensor, target: torch.Tensor):
+    return 0.5 * torch.mean((target - output) ** 2)
+
+
 class SpaRCeLoss:
     def __init__(self, loss_type: str = 'mse'):
         """
@@ -16,7 +20,7 @@ class SpaRCeLoss:
         if self.loss_type == 'mse':
             # Mean squared error (equation 3 in paper)
             # They also mentioned Ridge regression as well
-            return 0.5 * torch.mean((target - output) ** 2)
+            return mse_loss(output, target)
 
         elif self.loss_type == 'sigmoidal_cross_entropy':
             # Sigmoidal cross entropy (equation 9 in paper)
