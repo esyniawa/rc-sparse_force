@@ -62,7 +62,7 @@ def train_evaluate_sparce_arm(
         num_epochs: int,
         device: torch.device,
         weight_decay_readout: float = 1e-5,
-        subset_size: int = 512,
+        subset_size: int = 128,
         print_interval: int = 250
 ) -> tuple[list, list]:
     """Train and evaluate SpaRCe model on planar arm control."""
@@ -211,6 +211,11 @@ if __name__ == "__main__":
     # Get arguments
     args = get_training_args()
 
+    if args.device == 'cuda' and torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
     # Set random seed
     if args.seed is not None:
         torch.manual_seed(args.seed)
@@ -252,7 +257,7 @@ if __name__ == "__main__":
         feedforward_scaling=args.ff_scale,
         alpha=args.alpha,
         seed=args.seed,
-        device=args.device
+        device=device
     )
 
     # Train and evaluate
@@ -261,7 +266,7 @@ if __name__ == "__main__":
         train_loader=train_loader,
         test_loader=test_loader,
         num_epochs=args.num_epochs,
-        device=args.device
+        device=device
     )
 
     print(f"Final test MSE: {test_mses[-1]:.6f}")
