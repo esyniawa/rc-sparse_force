@@ -39,7 +39,6 @@ def get_training_args():
     parser.add_argument('--device', type=str, default='cuda',
                         help='Device (cpu or cuda)')
     args = parser.parse_args()
-
     return args
 
 
@@ -81,19 +80,14 @@ def train_evaluate_sparce_mnist(
         num_epochs: int,
         device: torch.device,
         weight_decay_readout: float = 1e-5,
-        subset_size: Optional[int] = 256,  # How many batches to use for percentile computation (can eat up memory pretty quickly)
+        subset_size: Optional[int] = 64,  # How many batches to use for percentile computation (can eat up memory pretty quickly)
         print_interval: int = 250
 ) -> Tuple[list, list]:
     """Train and evaluate SpaRCe model on sequential MNIST"""
     criterion = SpaRCeLoss(loss_type='sigmoidal_cross_entropy')
 
     # Optimizer for readout weights
-    optimizer = torch.optim.Adam([
-        {
-            'params': model.W_o,
-            'weight_decay': weight_decay_readout  # penalty term for large readout weights (l2 norm)
-        }
-    ], lr=model.lr_readout)
+    optimizer = torch.optim.Adam(model.parameters(), lr=model.lr_readout, weight_decay=weight_decay_readout)
 
     # Add learning rate scheduler for readout weights
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -238,7 +232,6 @@ if __name__ == "__main__":
         device = torch.device('cuda')
     else:
         device = torch.device('cpu')
-
     batch_size = args.batch_size
     num_epochs = args.num_epochs
 

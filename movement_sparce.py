@@ -62,7 +62,7 @@ def train_evaluate_sparce_arm(
         num_epochs: int,
         device: torch.device,
         weight_decay_readout: float = 1e-5,
-        subset_size: int = 128,
+        subset_size: int = 64,
         print_interval: int = 250
 ) -> tuple[list, list]:
     """Train and evaluate SpaRCe model on planar arm control."""

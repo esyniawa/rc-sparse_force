@@ -229,7 +229,7 @@ class PlanarArmTrajectory(PlanarArm):
 
 # Example usage:
 if __name__ == "__main__":
-    arm = PlanarArmTrajectory(arm='left', num_ik_points=10, num_trajectory_points=100)
+    arm = PlanarArmTrajectory(arm='right', num_ik_points=11, num_trajectory_points=100)
 
     # Define initial joint angles (in radians)
     initial_angles = np.array([np.pi / 4, np.pi / 3])
