@@ -72,7 +72,7 @@ def train_evaluate_sparce_arm(
     # Optimizer for readout weights
     optimizer = torch.optim.Adam([
         {
-            'params': model.W_o,
+            'params': [model.W_o],
             'weight_decay': weight_decay_readout
         }
     ], lr=model.lr_readout)
