@@ -70,12 +70,7 @@ def train_evaluate_sparce_arm(
     criterion = SpaRCeLoss(loss_type='mse')  # Use MSE loss for regression
 
     # Optimizer for readout weights
-    optimizer = torch.optim.Adam([
-        {
-            'params': [model.W_o],
-            'weight_decay': weight_decay_readout
-        }
-    ], lr=model.lr_readout)
+    optimizer = torch.optim.Adam(model.parameters(), lr=model.lr_readout, weight_decay=weight_decay_readout)
 
     # Add learning rate scheduler
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
