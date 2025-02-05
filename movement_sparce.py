@@ -195,7 +195,7 @@ def evaluate_sparce_arm(
                 output = model(data[:, t, :])
 
                 # Compute MSE
-                mse = mse_loss(output, target).item()
+                mse = mse_loss(output, target[:, t, :]).item()
                 batch_mse += mse
 
             total_mse += batch_mse
