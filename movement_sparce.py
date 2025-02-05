@@ -192,7 +192,7 @@ def evaluate_sparce_arm(
 
             for t in range(n_steps):
                 # Forward pass
-                output = model(data)
+                output = model(data[:, t, :])
 
                 # Compute MSE
                 mse = mse_loss(output, target).item()
