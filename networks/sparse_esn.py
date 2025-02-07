@@ -29,6 +29,16 @@ class SpaRCeLoss:
                 target * torch.log(output_sigmoid + 1e-10) +
                 (1 - target) * torch.log(1 - output_sigmoid + 1e-10)
             )
+
+        elif self.loss_type == 'cross_entropy':
+            return nn.CrossEntropyLoss()(output, target)
+
+        elif self.loss_type == 'bce':
+            return nn.BCELoss()(output, target)
+
+        elif self.loss_type == 'td_error':
+            pass
+
         else:
             raise ValueError(f"Unknown loss type: {self.loss_type}")
 
