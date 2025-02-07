@@ -204,8 +204,12 @@ class PlanarArmTrajectory(PlanarArm):
 
         # Add waiting period at the start
         if waiting_steps > 0:
-            joint_trajectory = np.vstack((joint_trajectory, np.tile(joint_trajectory[-1], (waiting_steps, 1))))
-            cartesian_trajectory = np.vstack((cartesian_trajectory, np.tile(cartesian_trajectory[-1], (waiting_steps, 1))))
+            joint_trajectory = np.vstack((np.tile(joint_trajectory[0], (waiting_steps, 1)),
+                                          joint_trajectory,
+                                          np.tile(joint_trajectory[-1], (waiting_steps, 1))))
+            cartesian_trajectory = np.vstack((np.tile(cartesian_trajectory[0], (waiting_steps, 1)),
+                                              cartesian_trajectory,
+                                              np.tile(cartesian_trajectory[-1], (waiting_steps, 1))))
 
         return joint_trajectory, cartesian_trajectory
 
@@ -237,13 +241,14 @@ if __name__ == "__main__":
 
     # Generate trajectory
     joint_traj, cart_traj = arm.plan_trajectory(initial_angles, target)
-    
+
     # Calculate velocities and accelerations (assuming 2-second movement)
-    velocities = arm.get_trajectory_velocities(joint_traj, duration=2.0)
-    accelerations = arm.get_trajectory_accelerations(joint_traj, duration=2.0)
-    
+    velocities = arm.get_trajectory_velocities(joint_traj, duration=4.0)
+    accelerations = arm.get_trajectory_accelerations(joint_traj, duration=4.0)
+
     # Plotting
     import matplotlib.pyplot as plt
+
     plt.figure(figsize=(15, 5))
 
     # Plot Cartesian trajectory
