@@ -1,45 +1,10 @@
 import os
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import torchvision
 from torchvision import transforms
-import numpy as np
 from typing import Tuple, Optional
 from networks.sparse_esn import SpaRCeESN, SpaRCeLoss
-import argparse
-
-
-def get_training_args():
-    parser = argparse.ArgumentParser(description='Train SpaRCe for sequential MNIST')
-
-    # Model parameters
-    parser.add_argument('--dim_res', type=int, default=1000,
-                        help='Reservoir dimension')
-    parser.add_argument('--perc_n', type=float, default=75.0,
-                        help='Percentile threshold')
-    parser.add_argument('--prop_rec', type=float, default=0.01,
-                        help='Proportion of recurrent connections')
-    parser.add_argument('--spectral_radius', type=float, default=0.97,
-                        help='Spectral radius')
-    parser.add_argument('--ff_scale', type=float, default=0.1,
-                        help='Scale of feedforward connections')
-    parser.add_argument('--alpha', type=float, default=0.17,
-                        help='Alpha parameter for leaky integrator')
-
-    # Training parameters
-    parser.add_argument('--sim_id', type=int, default=0,
-                        help='Simulation id')
-    parser.add_argument('--seed', type=int, default=None,
-                        help='Random seed for reproducibility')
-    parser.add_argument('--num_epochs', type=int, default=10,
-                        help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='Batch size for training')
-    parser.add_argument('--device', type=str, default='cuda',
-                        help='Device (cpu or cuda)')
-    args = parser.parse_args()
-    return args
 
 
 class SequentialMNIST(Dataset):
@@ -223,15 +188,11 @@ def evaluate_sparce_mnist(
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+    from plotting_functions import plot_errors
+    from arguments_for_runs import get_training_args, save_args
 
-    args = get_training_args()
+    args, _ = get_training_args()
 
-    # Set device and hyperparameters
-    if args.device == 'cuda' and torch.cuda.is_available():
-        device = torch.device('cuda')
-    else:
-        device = torch.device('cpu')
     batch_size = args.batch_size
     num_epochs = args.num_epochs
 
@@ -257,7 +218,7 @@ if __name__ == "__main__":
         feedforward_scaling=args.ff_scale,
         alpha=args.alpha,
         seed=args.seed,
-        device=device,
+        device=args.device,
     )
 
     # Train and evaluate
@@ -266,7 +227,7 @@ if __name__ == "__main__":
         train_loader=train_loader,
         test_loader=test_loader,
         num_epochs=num_epochs,
-        device=device
+        device=args.device
     )
 
     print(f"Final test accuracy: {test_accs[-1]:.2f}%")
@@ -274,20 +235,11 @@ if __name__ == "__main__":
     os.makedirs(results_folder, exist_ok=True)
 
     # Plot training and test accuracy
-    plt.figure(figsize=(10, 6))
-    plt.plot(train_accs, label='Train', color='green', linestyle='--')
-    plt.plot(test_accs, label='Test', color='blue')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy in %')
-    plt.legend()
-    plt.savefig(f'{results_folder}/mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pdf', bbox_inches='tight', pad_inches=0.1)
-    plt.close()
+    plot_errors(train_accs, test_accs,
+                save_name=f'{results_folder}/accuracy.png')
 
-    # Save parameters
-    with open(f'{results_folder}/mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].txt', 'w') as f:
-        f.write(f"Final test accuracy: {test_accs[-1]:.2f}%\n")
-        for name, value in vars(args).items():
-            f.write(f"{name}: {value}\n")
+    # Save arguments
+    save_args(args, save_name=f'{results_folder}/simulation_params.txt')
 
     # Save model
-    model.save_model(f'{results_folder}/mnist_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pth')
+    model.save_model(f'{results_folder}/model.pth')

@@ -7,21 +7,6 @@ import os
 from typing import Tuple, Optional
 from kinematics.planar_arm import PlanarArmTrajectory
 from tqdm.auto import tqdm
-import argparse
-
-
-def get_dataset_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--num_goals", type=int, default=200)
-    parser.add_argument("--num_init_thetas", type=int, default=200)
-    parser.add_argument("--num_t", type=int, default=110)
-    parser.add_argument("--wait_steps_after_trajectory", type=int, default=10)
-    parser.add_argument("--movement_duration", type=float, default=5.0)
-    parser.add_argument("--save_dir", type=str, default="arm_data")
-    parser.add_argument("--train_split", type=float, default=0.8)
-    args = parser.parse_args()
-
-    return args
 
 
 class PlanarArmDataset(Dataset):
@@ -54,7 +39,7 @@ class PlanarArmDataset(Dataset):
         self.save_dir = save_dir
 
         # Initialize arm trajectory planner
-        self.arm = PlanarArmTrajectory(arm=arm, num_ik_points=20, num_trajectory_points=num_t)
+        self.arm = PlanarArmTrajectory(arm=arm, num_ik_points=12, num_trajectory_points=num_t)
 
         # Initialize scalers
         self.input_scaler = MinMaxScaler(feature_range=(-1, 1))
@@ -76,6 +61,7 @@ class PlanarArmDataset(Dataset):
 
     def _check_saved_data(self) -> bool:
         """Check if saved dataset exists."""
+        print(f"Loading dataset from folder '{self.save_dir}'...")
         if not self.save_dir:
             return False
 
@@ -223,7 +209,15 @@ class PlanarArmDataset(Dataset):
         """Transform scaled targets back to original scale."""
         if isinstance(targets, torch.Tensor):
             targets = targets.detach().cpu().numpy()
-        return self.target_scaler.inverse_transform(targets)
+
+        # handle batches
+        if targets.ndim >= 2:
+            org_shape = targets.shape
+            targets = targets.reshape(-1, targets.shape[-1])
+            targets = self.target_scaler.inverse_transform(targets)
+            return targets.reshape(org_shape)
+        else:
+            return self.target_scaler.inverse_transform(targets)
 
 
 class PlanarArmDataLoader:
@@ -233,41 +227,77 @@ class PlanarArmDataLoader:
                  dataset: PlanarArmDataset,
                  batch_size: int,
                  mode: str,
-                 shuffle: bool = True):
+                 num_episodes: int = None,
+                 shuffle: bool = True,
+                 shuffle_episodes: bool = True):
         """
         Custom data loader for planar arm trajectories.
 
         :param dataset: PlanarArmDataset
         :param batch_size: Number of trajectories per batch (same goal, different init thetas)
-        :param shuffle: Shuffle the order of the batches
+        :param mode: Either 'train' or 'eval'
+        :param num_episodes: Maximum number of episodes to use (if None, use all available)
+        :param shuffle: Shuffle the order of the initial thetas within each episode
+        :param shuffle_episodes: Shuffle the order of episodes between epochs
         """
         self.dataset = dataset
-        self.batch_size = min(batch_size, dataset.num_init_thetas)  # Ensure batch size does not exceed num_init_thetas
+        self.batch_size = min(batch_size, dataset.num_init_thetas)
         self.shuffle = shuffle
+        self.shuffle_episodes = shuffle_episodes
         self.goal_idx = 0
 
         # Set goals range based on mode
         if mode == self.train:
             self.start_goal = 0
-            self.num_goals = dataset.train_goals
+            self.available_goals = dataset.train_goals
         elif mode == self.eval:
             self.start_goal = dataset.train_goals
-            self.num_goals = dataset.eval_goals
+            self.available_goals = dataset.eval_goals
         else:
             raise ValueError(f"Mode must be either '{self.train}' or '{self.eval}'")
 
+        # Initialize episode indices
+        self.set_num_episodes(num_episodes)
+
+    def set_num_episodes(self, num_episodes: int = None) -> None:
+        """
+        Change the number of episodes used by the data loader.
+
+        :param num_episodes: New number of episodes (if None, use all available)
+        """
+        # Update number of goals
+        self.num_goals = min(num_episodes, self.available_goals) if num_episodes else self.available_goals
+
+        # Reset and recreate episode indices
+        self.episode_indices = list(range(self.start_goal, self.start_goal + self.num_goals))
+        if self.shuffle_episodes:
+            self._shuffle_episodes()
+
+        # Reset iterator
+        self.goal_idx = 0
+
+    def _shuffle_episodes(self):
+        """Shuffle the order of episodes"""
+        np.random.shuffle(self.episode_indices)
+
     def __iter__(self):
         """Return iterator over batches."""
+        if self.shuffle_episodes:
+            self._shuffle_episodes()
+        self.goal_idx = 0
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get next batch of trajectories."""
-        if self.goal_idx >= len(self.dataset):
+        if self.goal_idx >= self.num_goals:
             self.goal_idx = 0
             raise StopIteration
 
+        # Get actual goal index from our shuffled indices
+        actual_goal_idx = self.episode_indices[self.goal_idx]
+
         # Get all trajectories for current goal
-        inputs, targets = self.dataset[self.goal_idx]
+        inputs, targets = self.dataset[actual_goal_idx]
 
         # Get random indices for batch
         if self.shuffle:
@@ -288,24 +318,29 @@ class PlanarArmDataLoader:
         return batch_inputs, batch_targets
 
     def __len__(self) -> int:
-        """Return number of batches per goal."""
+        """Return number of batches per episode."""
         return self.dataset.num_init_thetas // self.batch_size
 
 
 # Example usage:
 if __name__ == "__main__":
-    args = get_dataset_parser()
+    from arguments_for_runs import get_dataset_args, save_args
+
+    args = get_dataset_args()
 
     # Create dataset
     dataset = PlanarArmDataset(
         num_t=args.num_t,
-        wait_steps_after_trajectory=args.wait_steps_after_trajectory,
+        wait_steps_after_trajectory=args.wait_steps,
         num_init_thetas=args.num_init_thetas,
         num_goals=args.num_goals,
         movement_duration=args.movement_duration,
         train_split=args.train_split,
         save_dir=args.save_dir,
     )
+
+    # TODO: Add method in dataset to check if data match args. If not then re-generate dataset
+    save_args(args, save_name=args.save_dir + '/dataset_args.txt')
 
     """
     # DEMO:

@@ -1,58 +1,8 @@
-import argparse
 import torch
-import numpy as np
+from typing import Optional
 from networks.sparse_esn import SpaRCeESN, SpaRCeLoss, mse_loss
 from generate_movement_dataset import PlanarArmDataset, PlanarArmDataLoader
-
-
-def get_training_args():
-    """Define and parse command line arguments with default values."""
-    parser = argparse.ArgumentParser(description='Train SpaRCe for Planar Arm Control')
-
-    # Model parameters
-    parser.add_argument('--dim_res', type=int, default=1000,
-                        help='Reservoir dimension')
-    parser.add_argument('--perc_n', type=float, default=75.0,
-                        help='Percentile threshold')
-    parser.add_argument('--prop_rec', type=float, default=0.01,
-                        help='Proportion of recurrent connections')
-    parser.add_argument('--spectral_radius', type=float, default=0.97,
-                        help='Spectral radius')
-    parser.add_argument('--ff_scale', type=float, default=0.1,
-                        help='Scale of feedforward connections')
-    parser.add_argument('--alpha', type=float, default=0.17,
-                        help='Alpha parameter for leaky integrator')
-
-    # Dataset parameters
-    parser.add_argument('--num_t', type=int, default=110,
-                        help='Number of time steps')
-    parser.add_argument('--num_init_thetas', type=int, default=500,
-                        help='Number of initial joint angles')
-    parser.add_argument('--num_goals', type=int, default=500,
-                        help='Number of target positions')
-    parser.add_argument('--wait_steps', type=int, default=10,
-                        help='Wait steps after trajectory')
-    parser.add_argument('--movement_duration', type=float, default=5.0,
-                        help='Duration of movement')
-    parser.add_argument('--train_split', type=float, default=0.8,
-                        help='Train/eval split')
-    parser.add_argument('--save_dir', type=str, default='arm_data',
-                        help='Directory to save dataset')
-
-    # Training parameters
-    parser.add_argument('--sim_id', type=int, default=0,
-                        help='Simulation id')
-    parser.add_argument('--num_epochs', type=int, default=10,
-                        help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='Batch size for training')
-    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
-                        help='Device (cuda or cpu)')
-    parser.add_argument('--seed', type=int, default=42,
-                        help='Random seed for reproducibility')
-
-    args = parser.parse_args()
-    return args
+from plotting_functions import plot_errors, plot_batch_predictions
 
 
 def train_evaluate_sparce_arm(
@@ -63,7 +13,8 @@ def train_evaluate_sparce_arm(
         device: torch.device,
         weight_decay_readout: float = 1e-5,
         subset_size: int = 64,
-        print_interval: int = 250
+        print_interval: Optional[int] = None,
+        plot_folder: Optional[str] = None
 ) -> tuple[list, list]:
     """Train and evaluate SpaRCe model on planar arm control."""
 
@@ -78,7 +29,7 @@ def train_evaluate_sparce_arm(
         mode='min',  # Monitor MSE loss
         factor=0.5,
         patience=2,
-        min_lr=1e-7
+        min_lr=1e-8
     )
 
     # Lists to store training and test MSE
@@ -143,17 +94,21 @@ def train_evaluate_sparce_arm(
             total_mse += batch_mse
             num_batches += 1
 
-            if (batch_idx + 1) % print_interval == 0:
-                current_mse = total_mse / num_batches
-                print(f'Epoch: {epoch}, Batch: {batch_idx + 1}, '
-                      f'MSE: {current_mse:.6f}')
+            if print_interval is not None and batch_idx % print_interval == 0:
+                print(f'Batch {batch_idx}/{len(train_loader)}: '
+                      f'MSE = {batch_mse:.6f}')
+
 
         # Compute epoch training MSE
         train_mse = total_mse / num_batches
         train_mses.append(train_mse)
 
         # Evaluate on test set
-        test_mse = evaluate_sparce_arm(model, test_loader, device)
+        if plot_folder is not None:
+            epoch_folder = plot_folder + f'/epoch_{epoch}/'
+        else:
+            epoch_folder = None
+        test_mse = evaluate_sparce_arm(model, test_loader, device, plot_folder=epoch_folder)
         test_mses.append(test_mse)
 
         print(f'Epoch {epoch}: Train MSE = {train_mse:.6f}, '
@@ -168,7 +123,8 @@ def train_evaluate_sparce_arm(
 def evaluate_sparce_arm(
         model: SpaRCeESN,
         test_loader: PlanarArmDataLoader,
-        device: torch.device
+        device: torch.device,
+        plot_folder: Optional[str] = None,
 ) -> float:
     """Evaluate SpaRCe model on arm control test set."""
     model.eval()
@@ -182,6 +138,10 @@ def evaluate_sparce_arm(
             n_steps = data.size(1)
             batch_mse = 0
 
+            if plot_folder is not None:
+                # Initialize arrays to store outputs
+                batch_outputs = torch.zeros((batch_size, n_steps, 2), device=device)
+
             # Reset reservoir state
             model.reset_state(batch_size)
 
@@ -189,9 +149,22 @@ def evaluate_sparce_arm(
                 # Forward pass
                 output = model(data[:, t, :])
 
+                if plot_folder is not None:
+                    batch_outputs[:, t, :] = output
+
                 # Compute MSE
                 mse = mse_loss(output, target[:, t, :]).item()
                 batch_mse += mse
+
+            if plot_folder is not None:
+                plot_batch_predictions(
+                    batch_outputs=batch_outputs,
+                    batch_targets=target,
+                    dataset=test_loader.dataset,
+                    batch_idx=num_batches,
+                    save_name=plot_folder + f'/predictions_batch_{num_batches}.pdf',
+                    inverse_transform=False,
+                )
 
             total_mse += batch_mse
             num_batches += 1
@@ -200,16 +173,12 @@ def evaluate_sparce_arm(
 
 
 if __name__ == "__main__":
-    import os
-    import matplotlib.pyplot as plt
+    from arguments_for_runs import get_training_args, save_args, import_args
 
     # Get arguments
-    args = get_training_args()
-
-    if args.device == 'cuda' and torch.cuda.is_available():
-        device = torch.device('cuda')
-    else:
-        device = torch.device('cpu')
+    args, _ = get_training_args()
+    data_args = import_args(args.data_set_dir + '/dataset_args.txt')
+    result_folder = f'results/arm_control_{args.sim_id}/'
 
     # Set random seed
     if args.seed is not None:
@@ -217,25 +186,31 @@ if __name__ == "__main__":
 
     # Create dataset
     dataset = PlanarArmDataset(
-        num_t=args.num_t,
-        num_init_thetas=args.num_init_thetas,
-        num_goals=args.num_goals,
-        wait_steps_after_trajectory=args.wait_steps,
-        movement_duration=args.movement_duration,
-        train_split=args.train_split,
-        save_dir=args.save_dir
+        num_t=int(data_args.num_t),
+        num_init_thetas=int(data_args.num_init_thetas),
+        num_goals=int(data_args.num_goals),
+        wait_steps_after_trajectory=int(data_args.wait_steps),
+        movement_duration=float(data_args.movement_duration),
+        train_split=float(data_args.train_split),
+        save_dir=args.data_set_dir,
     )
 
     # Create data loaders
     train_loader = PlanarArmDataLoader(
         dataset=dataset,
         batch_size=args.batch_size,
-        mode='train'
+        mode='train',
+        num_episodes=args.num_train_episodes,
+        shuffle=True,
+        shuffle_episodes=True,
     )
     test_loader = PlanarArmDataLoader(
         dataset=dataset,
         batch_size=args.batch_size,
-        mode='eval'
+        mode='eval',
+        num_episodes=args.num_eval_episodes,
+        shuffle=True,
+        shuffle_episodes=True,
     )
 
     # Initialize model
@@ -252,7 +227,7 @@ if __name__ == "__main__":
         feedforward_scaling=args.ff_scale,
         alpha=args.alpha,
         seed=args.seed,
-        device=device
+        device=args.device
     )
 
     # Train and evaluate
@@ -261,25 +236,19 @@ if __name__ == "__main__":
         train_loader=train_loader,
         test_loader=test_loader,
         num_epochs=args.num_epochs,
-        device=device
+        device=args.device,
+        plot_folder=result_folder,
     )
 
+    # Make final test over the entire test set
+    test_loader.set_num_episodes(None)
+    final_mse = evaluate_sparce_arm(model, test_loader, args.device)
+
     print(f"Final test MSE: {test_mses[-1]:.6f}")
-    results_folder = f'results/arm_simulation_{args.sim_id}'
-    os.makedirs(results_folder, exist_ok=True)
+    # Save results
+    save_args(args,
+              save_name=result_folder + 'parameters.txt',
+              additional_args={'final_mse_test': final_mse})
 
-    # Plot training and test accuracy
-    plt.figure(figsize=(10, 6))
-    plt.plot(train_mses, label='Train', color='green', linestyle='--')
-    plt.plot(test_mses, label='Test', color='blue')
-    plt.xlabel('Epoch')
-    plt.ylabel('MSE')
-    plt.legend()
-    plt.savefig(f'{results_folder}/movement_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].pdf', bbox_inches='tight', pad_inches=0.1)
-    plt.close()
-
-    # Save parameters
-    with open(f'{results_folder}/movement_sparce_dim[{args.dim_res}]_percentile[{args.perc_n}]_prop_rec[{args.prop_rec}].txt', 'w') as f:
-        f.write(f"Final test accuracy: {test_mses[-1]:.2f}%\n")
-        for name, value in vars(args).items():
-            f.write(f"{name}: {value}\n")
+    # Plot training + evaresults
+    plot_errors(train_mses, test_mses, save_name=result_folder + 'errors.pdf')
