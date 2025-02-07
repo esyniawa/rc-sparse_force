@@ -242,13 +242,16 @@ if __name__ == "__main__":
 
     # Make final test over the entire test set
     test_loader.set_num_episodes(None)
-    final_mse = evaluate_sparce_arm(model, test_loader, args.device)
+    final_mse = evaluate_sparce_arm(model=model,
+                                    test_loader=test_loader,
+                                    device=args.device,
+                                    plot_folder=None)
 
-    print(f"Final test MSE: {test_mses[-1]:.6f}")
+    print(f"Final test MSE: {final_mse:.6f}")
     # Save results
     save_args(args,
               save_name=result_folder + 'parameters.txt',
               additional_args={'final_mse_test': final_mse})
 
-    # Plot training + evaresults
+    # Plot training + eval results
     plot_errors(train_mses, test_mses, save_name=result_folder + 'errors.pdf')
