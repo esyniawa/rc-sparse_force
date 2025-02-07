@@ -326,7 +326,7 @@ class PlanarArmDataLoader:
 if __name__ == "__main__":
     from arguments_for_runs import get_dataset_args, save_args
 
-    args = get_dataset_args()
+    args, _ = get_dataset_args()
 
     # Create dataset
     dataset = PlanarArmDataset(
