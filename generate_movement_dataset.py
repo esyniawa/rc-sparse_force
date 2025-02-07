@@ -31,7 +31,7 @@ class PlanarArmDataset(Dataset):
         :param save_dir: Directory to save / load the dataset
         """
 
-        self.wait_steps = wait_steps_after_trajectory * 2  # before and after trajectory
+        self.wait_steps = wait_steps_after_trajectory  # before trajectory
         self.num_t = num_t + self.wait_steps
         self.num_init_thetas = num_init_thetas
         self.num_goals = num_goals

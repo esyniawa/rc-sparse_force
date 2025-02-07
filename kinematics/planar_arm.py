@@ -205,11 +205,9 @@ class PlanarArmTrajectory(PlanarArm):
         # Add waiting period at the start
         if waiting_steps > 0:
             joint_trajectory = np.vstack((np.tile(joint_trajectory[0], (waiting_steps, 1)),
-                                          joint_trajectory,
-                                          np.tile(joint_trajectory[-1], (waiting_steps, 1))))
+                                          joint_trajectory,))
             cartesian_trajectory = np.vstack((np.tile(cartesian_trajectory[0], (waiting_steps, 1)),
-                                              cartesian_trajectory,
-                                              np.tile(cartesian_trajectory[-1], (waiting_steps, 1))))
+                                              cartesian_trajectory,))
 
         return joint_trajectory, cartesian_trajectory
 
