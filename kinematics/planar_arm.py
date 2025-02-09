@@ -23,11 +23,16 @@ class PlanarArm:
     l_upper_arm_limit, u_upper_arm_limit = np.radians((-5., 175.))  # in degrees [°]
     l_forearm_limit, u_forearm_limit = np.radians((-5., 175.))  # in degrees [°]
 
+    # xy limits
+    x_limits = (-450, 450)
+    y_limits = (-50, 400)
+
     # DH parameter
     scale = 1.0
     shoulder_length = scale * 50.0  # in [mm]
     upper_arm_length = scale * 220.0  # in [mm]
     forearm_length = scale * 160.0  # in [mm]
+
 
     def __init__(self, arm: str = 'right'):
         assert arm in ['left', 'right'], 'Arm must be "left" or "right"'
@@ -113,6 +118,53 @@ class PlanarArm:
                 )
 
                 return result.x if result.success else starting_angles
+
+    def generate_random_target(self,
+                               current_pos: np.ndarray,
+                               min_dist: float = 50,) -> Tuple[np.ndarray, np.ndarray]:
+
+        # Generate random angles within limits
+        theta_shoulder = np.random.uniform(PlanarArm.l_upper_arm_limit, PlanarArm.u_upper_arm_limit)
+        theta_elbow = np.random.uniform(PlanarArm.l_forearm_limit, PlanarArm.u_forearm_limit)
+
+        # Calculate end-effector positions for these angles
+        target_pos = self.forward_kinematics(np.array([theta_shoulder, theta_elbow]), radians=True, check_limits=False)[:, -1]
+        distance = np.linalg.norm(target_pos - current_pos)
+
+        # If distance is too small or target out of bounds, call function again
+        if distance < min_dist or not self.check_if_in_bounds(target_pos):
+            return self.generate_random_target(current_pos, min_dist=min_dist)
+        else:
+            return np.array([theta_shoulder, theta_elbow]), target_pos
+
+    def norm_xy(self, xy: np.ndarray, ) -> np.ndarray:
+        # Calculate the midpoints of x and y ranges
+        x_mid = (self.x_limits[0] + self.x_limits[1]) / 2
+        y_mid = (self.y_limits[0] + self.y_limits[1]) / 2
+
+        # Calculate the half-ranges
+        x_half_range = (self.x_limits[1] - self.x_limits[0]) / 2
+        y_half_range = (self.y_limits[1] - self.y_limits[0]) / 2
+
+        # Normalize to [-1, 1]
+        normalized_x = (xy[0] - x_mid) / x_half_range
+        normalized_y = (xy[1] - y_mid) / y_half_range
+
+        return np.array((normalized_x, normalized_y))
+
+    def norm_distance(self, distance: np.ndarray,) -> np.ndarray:
+        # Calculate x and y ranges
+        x_range = abs(self.x_limits[1] - self.x_limits[0])
+        y_range = abs(self.y_limits[1] - self.y_limits[0])
+
+        # Normalize the distance components to [-1, 1]
+        normalized_dx = distance[0] / x_range
+        normalized_dy = distance[1] / y_range
+
+        return np.array([normalized_dx, normalized_dy])
+
+    def check_if_in_bounds(self, xy: np.ndarray) -> bool:
+        return (self.x_limits[0] <= xy[0] <= self.x_limits[1]) and (self.y_limits[0] <= xy[1] <= self.y_limits[1])
 
     @staticmethod
     def check_values(thetas: np.ndarray, radians: bool = False) -> np.ndarray:
