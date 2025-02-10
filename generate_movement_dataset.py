@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import pickle
 import os
 from typing import Tuple, Optional
@@ -18,6 +18,8 @@ class PlanarArmDataset(Dataset):
                  wait_steps_after_trajectory: int = 10,
                  movement_duration: float = 5.0,
                  train_split: float = 0.8,
+                 coordinate_scaler: type = MinMaxScaler,
+                 angle_scaler: type = StandardScaler,
                  save_dir: Optional[str] = None):
         """
         Initialize the dataset for the planar arm.
@@ -29,9 +31,10 @@ class PlanarArmDataset(Dataset):
         :param movement_duration: Duration of the movement in seconds (for generating velocities)
         :param train_split: Fraction of the dataset to use for training
         :param save_dir: Directory to save / load the dataset
+        :param coordinate_scaler: Scaler class for x,y coordinates (default: MinMaxScaler)
+        :param angle_scaler: Scaler class for joint angles (default: MinMaxScaler)
         """
-
-        self.wait_steps = wait_steps_after_trajectory  # before trajectory
+        self.wait_steps = wait_steps_after_trajectory
         self.num_t = num_t + self.wait_steps
         self.num_init_thetas = num_init_thetas
         self.num_goals = num_goals
@@ -41,9 +44,13 @@ class PlanarArmDataset(Dataset):
         # Initialize arm trajectory planner
         self.arm = PlanarArmTrajectory(arm=arm, num_ik_points=12, num_trajectory_points=num_t)
 
-        # Initialize scalers
-        self.input_scaler = MinMaxScaler(feature_range=(-1, 1))
-        self.target_scaler = MinMaxScaler(feature_range=(-1, 1))
+        # Initialize separate scalers for each modality
+        self.x_goal_scaler = coordinate_scaler(feature_range=(-1, 1))
+        self.y_goal_scaler = coordinate_scaler(feature_range=(-1, 1))
+        self.theta_shoulder_scaler = angle_scaler()
+        self.theta_elbow_scaler = angle_scaler()
+        self.delta_theta_shoulder_scaler = angle_scaler()
+        self.delta_theta_elbow_scaler = angle_scaler()
 
         # Generate or load dataset
         if save_dir and self._check_saved_data():
@@ -51,13 +58,123 @@ class PlanarArmDataset(Dataset):
         else:
             self._generate_dataset()
 
-        # Split dataset into train and evaluation sets
+        # Split dataset
         self.train_split = train_split
         self.train_goals = int(self.num_goals * train_split)
         self.eval_goals = self.num_goals - self.train_goals
-
-        # Create indices for sampling
         self._create_sampling_indices()
+
+    def _save_dataset(self):
+        """Save dataset and scalers to disk."""
+        os.makedirs(self.save_dir, exist_ok=True)
+        np.save(os.path.join(self.save_dir, 'inputs.npy'), self.inputs)
+        np.save(os.path.join(self.save_dir, 'targets.npy'), self.targets)
+
+        scalers = {
+            'x_goal_scaler': self.x_goal_scaler,
+            'y_goal_scaler': self.y_goal_scaler,
+            'theta_shoulder_scaler': self.theta_shoulder_scaler,
+            'theta_elbow_scaler': self.theta_elbow_scaler,
+            'delta_theta_shoulder_scaler': self.delta_theta_shoulder_scaler,
+            'delta_theta_elbow_scaler': self.delta_theta_elbow_scaler
+        }
+
+        for name, scaler in scalers.items():
+            with open(os.path.join(self.save_dir, f'{name}.pkl'), 'wb') as f:
+                pickle.dump(scaler, f)
+
+    def _load_dataset(self):
+        """Load dataset and scalers from disk."""
+        print(f"Loading dataset from folder '{self.save_dir}'...")
+
+        self.inputs = np.load(os.path.join(self.save_dir, 'inputs.npy'))
+        self.targets = np.load(os.path.join(self.save_dir, 'targets.npy'))
+
+        scalers = {
+            'x_goal_scaler': self.x_goal_scaler,
+            'y_goal_scaler': self.y_goal_scaler,
+            'theta_shoulder_scaler': self.theta_shoulder_scaler,
+            'theta_elbow_scaler': self.theta_elbow_scaler,
+            'delta_theta_shoulder_scaler': self.delta_theta_shoulder_scaler,
+            'delta_theta_elbow_scaler': self.delta_theta_elbow_scaler
+        }
+
+        for name, scaler in scalers.items():
+            with open(os.path.join(self.save_dir, f'{name}.pkl'), 'rb') as f:
+                setattr(self, name, pickle.load(f))
+
+    def _generate_dataset(self):
+        """Generate the full dataset with separate scaling for each modality."""
+        init_thetas = self._generate_random_init_thetas()
+        goals = self._generate_random_goals()
+
+        self.inputs = np.zeros((self.num_goals, self.num_init_thetas, self.num_t, 4))
+        self.targets = np.zeros((self.num_goals, self.num_init_thetas, self.num_t, 2))
+
+        tqdm.write("Generating trajectories...")
+        for i, goal in tqdm(enumerate(goals), total=len(goals), desc="Goals"):
+            for j, theta in tqdm(enumerate(init_thetas), total=len(init_thetas),
+                                 desc=f"Trajectories for goal {i + 1}/{len(goals)}",
+                                 leave=False):
+                joint_traj, _ = self.arm.plan_trajectory(current_angles=theta, target_coord=goal,
+                                                         waiting_steps=self.wait_steps)
+                velocities = self.arm.get_trajectory_velocities(joint_traj)
+
+                self.inputs[i, j, :, :2] = joint_traj
+                self.inputs[i, j, :, 2:] = goal
+                self.targets[i, j, :, :] = velocities
+
+        # Fit and transform each modality separately
+        all_shoulder_angles = self.inputs[..., 0].reshape(-1, 1)
+        all_elbow_angles = self.inputs[..., 1].reshape(-1, 1)
+        all_x_goals = self.inputs[..., 2].reshape(-1, 1)
+        all_y_goals = self.inputs[..., 3].reshape(-1, 1)
+        all_delta_shoulder = self.targets[..., 0].reshape(-1, 1)
+        all_delta_elbow = self.targets[..., 1].reshape(-1, 1)
+
+        # Fit scalers
+        self.theta_shoulder_scaler.fit(all_shoulder_angles)
+        self.theta_elbow_scaler.fit(all_elbow_angles)
+        self.x_goal_scaler.fit(all_x_goals)
+        self.y_goal_scaler.fit(all_y_goals)
+        self.delta_theta_shoulder_scaler.fit(all_delta_shoulder)
+        self.delta_theta_elbow_scaler.fit(all_delta_elbow)
+
+        # Transform data
+        input_shape = self.inputs.shape
+        target_shape = self.targets.shape
+
+        # Transform inputs
+        self.inputs[..., 0] = self.theta_shoulder_scaler.transform(all_shoulder_angles).reshape(input_shape[:-1])
+        self.inputs[..., 1] = self.theta_elbow_scaler.transform(all_elbow_angles).reshape(input_shape[:-1])
+        self.inputs[..., 2] = self.x_goal_scaler.transform(all_x_goals).reshape(input_shape[:-1])
+        self.inputs[..., 3] = self.y_goal_scaler.transform(all_y_goals).reshape(input_shape[:-1])
+
+        # Transform targets
+        self.targets[..., 0] = self.delta_theta_shoulder_scaler.transform(all_delta_shoulder).reshape(target_shape[:-1])
+        self.targets[..., 1] = self.delta_theta_elbow_scaler.transform(all_delta_elbow).reshape(target_shape[:-1])
+
+        if self.save_dir:
+            self._save_dataset()
+
+    def inverse_transform_targets(self, targets: np.ndarray | torch.Tensor) -> np.ndarray:
+        """Transform scaled targets back to original scale."""
+        if isinstance(targets, torch.Tensor):
+            targets = targets.detach().cpu().numpy()
+
+        org_shape = targets.shape
+        if targets.ndim >= 2:
+            shoulder_velocities = self.delta_theta_shoulder_scaler.inverse_transform(
+                targets[..., 0].reshape(-1, 1)).reshape(org_shape[:-1])
+            elbow_velocities = self.delta_theta_elbow_scaler.inverse_transform(
+                targets[..., 1].reshape(-1, 1)).reshape(org_shape[:-1])
+        else:
+            shoulder_velocities = self.delta_theta_shoulder_scaler.inverse_transform(
+                targets[0].reshape(-1, 1)).flatten()
+            elbow_velocities = self.delta_theta_elbow_scaler.inverse_transform(
+                targets[1].reshape(-1, 1)).flatten()
+
+        return np.stack([shoulder_velocities, elbow_velocities], axis=-1)
 
     def _check_saved_data(self) -> bool:
         """Check if saved dataset exists."""
@@ -104,56 +221,6 @@ class PlanarArmDataset(Dataset):
 
         return np.array(goals)
 
-    def _generate_dataset(self):
-        """Generate the full dataset."""
-        # Generate initial configurations and goals
-        init_thetas = self._generate_random_init_thetas()
-        goals = self._generate_random_goals()
-
-        # Initialize arrays for inputs and targets
-        # Shape: (num_goals, num_init_thetas, num_t, 4/2)
-        self.inputs = np.zeros((self.num_goals, self.num_init_thetas, self.num_t, 4))
-        self.targets = np.zeros((self.num_goals, self.num_init_thetas, self.num_t, 2))
-
-        # Generate trajectories for each combination
-        tqdm.write("Generating trajectories...")
-        for i, goal in tqdm(enumerate(goals), total=len(goals), desc="Goals"):
-            for j, theta in tqdm(enumerate(init_thetas), total=len(init_thetas),
-                                 desc=f"Trajectories for goal {i + 1}/{len(goals)}",
-                                 leave=False):
-
-                # Generate trajectory
-                joint_traj, _ = self.arm.plan_trajectory(current_angles=theta, target_coord=goal, waiting_steps=self.wait_steps)
-
-                # Calculate velocities (targets)
-                velocities = self.arm.get_trajectory_velocities(joint_traj)
-
-                # Store data
-                # For each timestep, store current angles and goal
-                self.inputs[i, j, :, :2] = joint_traj  # Current angles
-                self.inputs[i, j, :, 2:] = goal  # Goal position (same for all timesteps)
-                self.targets[i, j, :, :] = velocities  # Joint velocities
-
-        # Reshape for scaling
-        input_shape = self.inputs.shape
-        target_shape = self.targets.shape
-
-        # Fit scalers
-        self.input_scaler.fit(self.inputs.reshape(-1, 4))
-        self.target_scaler.fit(self.targets.reshape(-1, 2))
-
-        # Transform data
-        self.inputs = self.input_scaler.transform(
-            self.inputs.reshape(-1, 4)
-        ).reshape(input_shape)
-        self.targets = self.target_scaler.transform(
-            self.targets.reshape(-1, 2)
-        ).reshape(target_shape)
-
-        # Save dataset if directory is specified
-        if self.save_dir:
-            self._save_dataset()
-
     def _create_sampling_indices(self):
         """Create shuffled indices for each goal."""
         self.goal_indices = list(range(self.num_goals))
@@ -161,32 +228,6 @@ class PlanarArmDataset(Dataset):
         for goal_idx in range(self.num_goals):
             self.theta_indices[goal_idx] = list(range(self.num_init_thetas))
             np.random.shuffle(self.theta_indices[goal_idx])
-
-    def _save_dataset(self):
-        """Save dataset and scalers to disk."""
-        os.makedirs(self.save_dir, exist_ok=True)
-
-        # Save numpy arrays
-        np.save(os.path.join(self.save_dir, 'inputs.npy'), self.inputs)
-        np.save(os.path.join(self.save_dir, 'targets.npy'), self.targets)
-
-        # Save scalers
-        with open(os.path.join(self.save_dir, 'input_scaler.pkl'), 'wb') as f:
-            pickle.dump(self.input_scaler, f)
-        with open(os.path.join(self.save_dir, 'target_scaler.pkl'), 'wb') as f:
-            pickle.dump(self.target_scaler, f)
-
-    def _load_dataset(self):
-        """Load dataset and scalers from disk."""
-        # Load numpy arrays
-        self.inputs = np.load(os.path.join(self.save_dir, 'inputs.npy'))
-        self.targets = np.load(os.path.join(self.save_dir, 'targets.npy'))
-
-        # Load scalers
-        with open(os.path.join(self.save_dir, 'input_scaler.pkl'), 'rb') as f:
-            self.input_scaler = pickle.load(f)
-        with open(os.path.join(self.save_dir, 'target_scaler.pkl'), 'rb') as f:
-            self.target_scaler = pickle.load(f)
 
     def __len__(self) -> int:
         """Return number of goals (each goal will be an epoch)."""
@@ -204,20 +245,6 @@ class PlanarArmDataset(Dataset):
         # Convert to torch tensors
         return (torch.FloatTensor(inputs),
                 torch.FloatTensor(targets))
-
-    def inverse_transform_targets(self, targets: np.ndarray | torch.Tensor) -> np.ndarray:
-        """Transform scaled targets back to original scale."""
-        if isinstance(targets, torch.Tensor):
-            targets = targets.detach().cpu().numpy()
-
-        # handle batches
-        if targets.ndim >= 2:
-            org_shape = targets.shape
-            targets = targets.reshape(-1, targets.shape[-1])
-            targets = self.target_scaler.inverse_transform(targets)
-            return targets.reshape(org_shape)
-        else:
-            return self.target_scaler.inverse_transform(targets)
 
 
 class PlanarArmDataLoader:
