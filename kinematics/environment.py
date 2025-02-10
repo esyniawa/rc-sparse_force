@@ -73,7 +73,7 @@ class ReachingEnvironment:
         reward += -1e-3 * error  # in [m]
         done = error < abort_criteria
         if done:
-            reward += 10.
+            reward += 5.
 
         return np.concatenate([np.sin(self.current_thetas),
                                np.cos(self.current_thetas),
