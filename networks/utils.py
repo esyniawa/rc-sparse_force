@@ -1,4 +1,5 @@
 import torch
+from contextlib import contextmanager
 
 
 def z_normalize(x: torch.Tensor, eps: float = 1e-8):
@@ -31,3 +32,17 @@ def initialize_reservoir_weights(dim_reservoir: int,
         W /= max_abs_eigenvalue
 
     return W * spectral_radius
+
+
+@contextmanager
+def action_no_grad():
+    """
+    Context manager to temporarily disable gradient computation for action selection
+    and environment interaction while preserving the model's gradients.
+    """
+    was_enabled = torch.is_grad_enabled()
+    try:
+        torch.set_grad_enabled(False)
+        yield
+    finally:
+        torch.set_grad_enabled(was_enabled)

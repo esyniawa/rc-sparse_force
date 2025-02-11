@@ -7,6 +7,9 @@ from typing import Optional, Tuple, List
 
 
 def save_or_show(save_name: Optional[str], fig: plt.Figure):
+    """
+    Function to save the figure if a save name is provided or show it in the interactive window.
+    """
     if save_name is not None:
         save_folder = os.path.split(save_name)[0]
         if save_folder != '': os.makedirs(save_folder, exist_ok=True)
@@ -95,3 +98,48 @@ def plot_batch_predictions(batch_outputs: torch.Tensor,
             ax.legend()
 
     save_or_show(save_name, fig)
+
+
+def analyze_performance(test_results: dict, save_path: Optional[str] = None, print_results: bool = True):
+    """
+    Analyze and visualize test results for DRL reaching task
+    """
+    import matplotlib.pyplot as plt
+
+
+    fig, axs = plt.subplots(2, 2, figsize=(15, 10))
+
+    # Error distribution
+    axs[0, 0].hist(test_results['error'], bins=30)
+    axs[0, 0].set_title('Error Distribution')
+    axs[0, 0].set_xlabel('Error (mm)')
+    axs[0, 0].set_ylabel('Count')
+
+    # Steps to completion
+    axs[0, 1].hist(test_results['steps'], bins=30)
+    axs[0, 1].set_title('Steps to Completion')
+    axs[0, 1].set_xlabel('Steps')
+    axs[0, 1].set_ylabel('Count')
+
+    # Error over trials
+    axs[1, 0].plot(test_results['error'])
+    axs[1, 0].set_title('Error over Trials')
+    axs[1, 0].set_xlabel('Trial')
+    axs[1, 0].set_ylabel('Error (mm)')
+
+    # Reward over trials
+    axs[1, 1].plot(test_results['total_reward'])
+    axs[1, 1].set_title('Reward over Trials')
+    axs[1, 1].set_xlabel('Trial')
+    axs[1, 1].set_ylabel('Total Reward')
+
+    plt.tight_layout()
+    save_or_show(save_path, fig)
+
+    if print_results:
+        # Print summary statistics
+        print("\nPerformance Summary:")
+        print(f"Success Rate: {test_results['success_rate']:.2f}%")
+        print(f"Average Error: {np.mean(test_results['error']):.2f} ± {np.std(test_results['error']):.2f} mm")
+        print(f"Average Steps: {np.mean(test_results['steps']):.2f} ± {np.std(test_results['steps']):.2f}")
+        print(f"Average Reward: {np.mean(test_results['total_reward']):.2f} ± {np.std(test_results['total_reward']):.2f}")
