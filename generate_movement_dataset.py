@@ -19,7 +19,7 @@ class PlanarArmDataset(Dataset):
                  movement_duration: float = 5.0,
                  train_split: float = 0.8,
                  coordinate_scaler: type = MinMaxScaler,
-                 angle_scaler: type = StandardScaler,
+                 angle_scaler: type = MinMaxScaler,
                  save_dir: Optional[str] = None):
         """
         Initialize the dataset for the planar arm.
@@ -47,10 +47,10 @@ class PlanarArmDataset(Dataset):
         # Initialize separate scalers for each modality
         self.x_goal_scaler = coordinate_scaler(feature_range=(-1, 1))
         self.y_goal_scaler = coordinate_scaler(feature_range=(-1, 1))
-        self.theta_shoulder_scaler = angle_scaler()
-        self.theta_elbow_scaler = angle_scaler()
-        self.delta_theta_shoulder_scaler = angle_scaler()
-        self.delta_theta_elbow_scaler = angle_scaler()
+        self.theta_shoulder_scaler = angle_scaler(feature_range=(-1, 1))
+        self.theta_elbow_scaler = angle_scaler(feature_range=(-1, 1))
+        self.delta_theta_shoulder_scaler = angle_scaler(feature_range=(-1, 1))
+        self.delta_theta_elbow_scaler = angle_scaler(feature_range=(-1, 1))
 
         # Generate or load dataset
         if save_dir and self._check_saved_data():
