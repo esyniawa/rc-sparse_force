@@ -193,7 +193,7 @@ def evaluate_rl_sparce(
                 # Select actions (no exploration during evaluation)
                 actions = model.test_step(states)
 
-                # Step environments
+                # Step environments per batch
                 next_states = []
                 rewards = []
                 dones = []
@@ -207,7 +207,9 @@ def evaluate_rl_sparce(
 
                         episode_rewards[i] += reward
                         episode_steps[i] += 1
-                        final_errors[i] = env.norm_distance
+                        # Calculate final error
+                        distance = env.target_pos - env.current_pos
+                        final_errors[i] = np.linalg.norm(distance)
 
                         if done:
                             successes += 1
