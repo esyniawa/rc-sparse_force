@@ -105,9 +105,8 @@ class RLSpaRCe(SpaRCeESN):
             self.initialize_traces(batch_size)
 
         # Update weight eligibility [batch_size, output_dim, reservoir_dim]
-        for b in range(batch_size):
-            self.e_w[b] = self.lambda_trace * self.e_w[b] + \
-                          torch.outer(actions[b], self.x[b])
+        self.e_w = self.lambda_trace * self.e_w + \
+                   torch.bmm(actions.unsqueeze(2), self.x.unsqueeze(1))
 
         # Update threshold eligibility [batch_size, reservoir_dim]
         V_abs = torch.abs(self.V)
@@ -134,7 +133,7 @@ class RLSpaRCe(SpaRCeESN):
 
         return rewards + self.gamma * next_value - current_value
 
-    def update_weights(self, td_errors: torch.Tensor):
+    def update_weights(self, td_errors: torch.Tensor, gradient_clip: bool = True):
         # Normalize TD error for stability
         td_errors_scaled = z_normalize(td_errors)
         # From [batch_size] to [batch_size, 1, 1] to align with eligibility traces
@@ -143,16 +142,22 @@ class RLSpaRCe(SpaRCeESN):
         # Update readout weights
         with torch.no_grad():
             weight_updates = (td_errors_scaled * self.e_w).mean(dim=0)
+            if gradient_clip:
+                weight_updates = torch.clamp(weight_updates, -1, 1)
             self.W_o += self.lr_readout * weight_updates
 
         # Update thresholds
         with torch.no_grad():
             theta_updates = (td_errors_scaled.squeeze(-1) * self.e_theta).mean(dim=0)
+            if gradient_clip:
+                theta_updates = torch.clamp(theta_updates, -1, 1)
             self.theta_tilde += self.lr_threshold * theta_updates
 
         # Update value weights
         with torch.no_grad():
             value_updates = (td_errors_scaled * self.e_v).mean(dim=0)
+            if gradient_clip:
+                value_updates = torch.clamp(value_updates, -1, 1)
             self.W_v += self.lr_readout * value_updates
 
     def select_actions(self, epsilon: float = 0.1, std: float = 1.0) -> torch.Tensor:

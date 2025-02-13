@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from typing import Optional, Dict
+from torch import nn
 from tqdm import tqdm
 import os
 from kinematics.environment import ReachingEnvironment
@@ -249,7 +250,9 @@ if __name__ == "__main__":
         dim_output=2,  # joint angle changes
         alpha=0.1,
         noise_scaling=0.0,
-        feedforward_scaling=0.1,
+        feedforward_scaling=0.2,
+        f_activation_func=nn.Tanh(),
+        x_activation_func=nn.Tanh(),  # ReLU could be problematic with the eligibility traces (they only grow)
         spectral_radius=1.0,
         percentile_n=10.0,
         probability_recurrent_connection=0.2,
@@ -260,7 +263,7 @@ if __name__ == "__main__":
 
     # Training parameters
     params = {
-        'num_epochs': 20,
+        'num_epochs': 50,
         'num_episodes': 100,
         'final_epsilon': 0.01,
         'max_steps': 200,

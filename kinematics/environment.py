@@ -82,7 +82,7 @@ class ReachingEnvironment:
 if __name__ == '__main__':
     env = ReachingEnvironment(init_thetas=np.zeros(2), arm='right')
     print(env.reset())
-    for _ in range(10):
+    for _ in range(1000):
         action = np.random.uniform(-1, 1, size=2)
         state, reward, done = env.step(action)
         print(f'State: {state}, Reward: {reward}, Done: {done}')
