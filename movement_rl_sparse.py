@@ -248,14 +248,19 @@ if __name__ == "__main__":
         dim_input=6,  # current angles (2) + target position (2)
         dim_output=2,  # joint angle changes
         alpha=0.1,
-        learning_rate_threshold=1e-4,
-        learning_rate_readout=1e-3,
+        noise_scaling=0.0,
+        feedforward_scaling=0.1,
+        spectral_radius=1.0,
+        percentile_n=10.0,
+        probability_recurrent_connection=0.2,
+        learning_rate_threshold=5e-6,
+        learning_rate_readout=1e-5,
         device=device
     ).to(device)
 
     # Training parameters
     params = {
-        'num_epochs': 50,
+        'num_epochs': 20,
         'num_episodes': 100,
         'final_epsilon': 0.01,
         'max_steps': 200,
