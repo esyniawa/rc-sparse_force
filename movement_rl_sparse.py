@@ -184,10 +184,10 @@ def evaluate_rl_sparce(
             states = torch.from_numpy(np.array([env.reset() for env in envs])).float().to(device)
             model.reset_state(batch_size)
 
-            episode_rewards = torch.zeros(batch_size).to(device)
-            episode_steps = torch.zeros(batch_size).to(device)
-            final_errors = torch.zeros(batch_size).to(device)
-            active_envs = torch.ones(batch_size, dtype=torch.bool).to(device)
+            episode_rewards = np.zeros(batch_size)
+            episode_steps = np.zeros(batch_size)
+            final_errors = np.zeros(batch_size)
+            active_envs = np.ones(batch_size, dtype=np.bool_)
 
             for step in range(max_steps):
                 # Select actions (no exploration during evaluation)
@@ -225,9 +225,9 @@ def evaluate_rl_sparce(
                     break
 
             # Record batch results
-            results['error'].extend(final_errors.cpu().numpy())
-            results['steps'].extend(episode_steps.cpu().numpy())
-            results['total_reward'].extend(episode_rewards.cpu().numpy())
+            results['error'].extend(final_errors)
+            results['steps'].extend(episode_steps)
+            results['total_reward'].extend(episode_rewards)
 
     # Calculate success rate
     total_episodes = num_batches * batch_size
