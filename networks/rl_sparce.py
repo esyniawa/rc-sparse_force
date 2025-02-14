@@ -49,7 +49,7 @@ class RLSpaRCe(SpaRCeESN):
             self.e_theta[batch_indices] = 0
             self.e_v[batch_indices] = 0
 
-    def compute_initial_percentiles(self, envs: List, num_steps: int = 1000):
+    def compute_initial_percentiles(self, envs: List, num_steps: int = 2000, num_steps_per_episode: int = 50):
         """
         Compute initial percentile thresholds by running random actions
         through the reservoir and collecting activity statistics
@@ -70,8 +70,12 @@ class RLSpaRCe(SpaRCeESN):
             # Step environments
             next_states = []
             for i, env in enumerate(envs):
+                if i % num_steps_per_episode == 0:
+                    env.reset()
+
                 next_state, _, _ = env.step(actions[i].cpu().numpy())
                 next_states.append(next_state)
+
             states = torch.from_numpy(np.array(next_states)).float().to(self.device)
 
             # Get reservoir activity
@@ -111,7 +115,7 @@ class RLSpaRCe(SpaRCeESN):
         # Update threshold eligibility [batch_size, reservoir_dim]
         V_abs = torch.abs(self.V)
         self.e_theta = self.lambda_trace * self.e_theta + \
-                       (V_abs - self.theta_tilde) * torch.sign(self.V)
+                       self.x_activation(V_abs - self.theta_tilde) * torch.sign(self.V)
 
         # Update value eligibility [batch_size, 1, reservoir_dim]
         self.e_v = self.lambda_trace * self.e_v + self.x.unsqueeze(1)

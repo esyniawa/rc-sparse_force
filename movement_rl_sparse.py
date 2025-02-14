@@ -246,15 +246,15 @@ if __name__ == "__main__":
     # Initialize model
     model = RLSpaRCe(
         dim_reservoir=1000,
-        dim_input=6,  # current angles (2) + target position (2)
+        dim_input=6,  # current angles (4) + target position (2)
         dim_output=2,  # joint angle changes
         alpha=0.1,
         noise_scaling=0.0,
-        feedforward_scaling=0.2,
+        feedforward_scaling=1.0,
         f_activation_func=nn.Tanh(),
-        x_activation_func=nn.Tanh(),  # ReLU could be problematic with the eligibility traces (they only grow)
+        x_activation_func=nn.ReLU(),  # ReLU could be problematic with the eligibility traces (they only grow)
         spectral_radius=1.0,
-        percentile_n=10.0,
+        percentile_n=25.0,
         probability_recurrent_connection=0.2,
         learning_rate_threshold=5e-6,
         learning_rate_readout=1e-5,

@@ -173,6 +173,7 @@ def evaluate_sparce_arm(
 
 
 if __name__ == "__main__":
+    from torch import nn
     from arguments_for_runs import get_training_args, save_args, import_args
 
     # Get arguments
@@ -220,6 +221,7 @@ if __name__ == "__main__":
         dim_output=2,  # Delta joint angles (2)
         mode='regression',
         percentile_n=args.perc_n,
+        x_activation_func=nn.ReLU(),
         probability_recurrent_connection=args.prop_rec,
         spectral_radius=args.spectral_radius,
         learning_rate_threshold=5e-5,
