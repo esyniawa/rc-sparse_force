@@ -3,10 +3,47 @@ import torch
 import torch.nn as nn
 from typing import Optional, Tuple, List
 from .sparse_esn import SpaRCeESN
-from .utils import z_normalize
+from .utils import z_normalize, compute_statistics
 
 
-# TODO: Add support for batch training
+class NetworkMonitor:
+    def __init__(self):
+        self.stats = {
+            'weights': [],
+            'values': [],
+            'thresholds': [],
+            'eligibility_traces': {
+                'weights': [],
+                'thresholds': [],
+                'values': []
+            }
+        }
+
+    def update(self, model):
+        # Collect weight statistics
+        self.stats['weights'].append(compute_statistics(model.W_o))
+
+        # Collect value statistics
+        self.stats['values'].append(compute_statistics(model.W_v))
+
+        # Collect threshold statistics
+        self.stats['thresholds'].append(compute_statistics(model.theta_tilde))
+
+        # Collect eligibility trace statistics
+        if model.e_w is not None:
+            self.stats['eligibility_traces']['weights'].append(
+                compute_statistics(model.e_w)
+            )
+        if model.e_theta is not None:
+            self.stats['eligibility_traces']['thresholds'].append(
+                compute_statistics(model.e_theta)
+            )
+        if model.e_v is not None:
+            self.stats['eligibility_traces']['values'].append(
+                compute_statistics(model.e_v)
+            )
+
+
 class RLSpaRCe(SpaRCeESN):
     def __init__(self,
                  dim_reservoir: int,
@@ -49,7 +86,7 @@ class RLSpaRCe(SpaRCeESN):
             self.e_theta[batch_indices] = 0
             self.e_v[batch_indices] = 0
 
-    def compute_initial_percentiles(self, envs: List, num_steps: int = 2000, num_steps_per_episode: int = 50):
+    def compute_initial_percentiles(self, envs: List, num_steps: int = 2000, num_steps_per_episode: int = 100):
         """
         Compute initial percentile thresholds by running random actions
         through the reservoir and collecting activity statistics

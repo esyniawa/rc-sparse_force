@@ -2,6 +2,21 @@ import torch
 from contextlib import contextmanager
 
 
+def compute_statistics(tensor):
+    """Compute mean, std, min, max of tensor"""
+    with torch.no_grad():
+        mean = tensor.mean().item()
+        std = tensor.std().item()
+        min_val = tensor.min().item()
+        max_val = tensor.max().item()
+    return {
+        'mean': mean,
+        'std': std,
+        'min': min_val,
+        'max': max_val
+    }
+
+
 def z_normalize(x: torch.Tensor, eps: float = 1e-8):
     return (x - x.mean()) / (x.std() + eps)
 
