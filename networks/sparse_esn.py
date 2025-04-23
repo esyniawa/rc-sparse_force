@@ -202,8 +202,11 @@ class SpaRCeESN(nn.Module):
                     delta_theta_2 -= self.W_o[correct_class] * x_sign
 
             # Apply Z normalization to each delta term
-            delta_theta_1 = z_normalize(delta_theta_1)
-            if self.mode == 'classification':
+            if self.mode == 'regression':
+                delta_theta_1 = delta_theta_1 / batch_size
+
+            elif self.mode == 'classification':
+                delta_theta_1 = z_normalize(delta_theta_1)
                 delta_theta_2 = z_normalize(delta_theta_2)
 
             # Update thresholds
