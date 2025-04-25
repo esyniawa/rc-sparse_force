@@ -183,7 +183,7 @@ class PlanarArmDataset(Dataset):
             return False
 
         files = ['inputs.npy', 'targets.npy', 'input_scaler.pkl', 'target_scaler.pkl']
-        print([os.path.exists(os.path.join(self.save_dir, f)) for f in files])
+        print([(f, os.path.exists(os.path.join(self.save_dir, f))) for f in files])
         return all(os.path.exists(os.path.join(self.save_dir, f)) for f in files)
 
     def _generate_random_init_thetas(self) -> np.ndarray:
