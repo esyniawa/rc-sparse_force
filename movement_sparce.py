@@ -221,7 +221,7 @@ if __name__ == "__main__":
         dim_output=2,  # Delta joint angles (2)
         mode='regression',
         percentile_n=args.perc_n,
-        x_activation_func=nn.ReLU(),
+        x_activation_func=nn.Tanh(),
         probability_recurrent_connection=args.prop_rec,
         spectral_radius=args.spectral_radius,
         learning_rate_threshold=5e-5,
