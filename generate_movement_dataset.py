@@ -178,11 +178,13 @@ class PlanarArmDataset(Dataset):
 
     def _check_saved_data(self) -> bool:
         """Check if saved dataset exists."""
-        print(f"Loading dataset from folder '{self.save_dir}'...")
         if not self.save_dir:
             return False
 
-        files = ['inputs.npy', 'targets.npy', 'input_scaler.pkl', 'target_scaler.pkl']
+        files = ['inputs.npy', 'targets.npy',
+                 'x_goal_scaler.pkl', 'y_goal_scaler.pkl',
+                 'theta_shoulder_scaler.pkl', 'theta_elbow_scaler.pkl',
+                 'delta_theta_shoulder_scaler.pkl', 'delta_theta_elbow_scaler.pkl']
         print([(f, os.path.exists(os.path.join(self.save_dir, f))) for f in files])
         return all(os.path.exists(os.path.join(self.save_dir, f)) for f in files)
 
