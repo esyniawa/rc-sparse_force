@@ -185,7 +185,7 @@ class PlanarArmDataset(Dataset):
                  'x_goal_scaler.pkl', 'y_goal_scaler.pkl',
                  'theta_shoulder_scaler.pkl', 'theta_elbow_scaler.pkl',
                  'delta_theta_shoulder_scaler.pkl', 'delta_theta_elbow_scaler.pkl']
-        print([(f, os.path.exists(os.path.join(self.save_dir, f))) for f in files])
+        # Check if all files exist
         return all(os.path.exists(os.path.join(self.save_dir, f)) for f in files)
 
     def _generate_random_init_thetas(self) -> np.ndarray:
