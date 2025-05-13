@@ -6,13 +6,13 @@ from typing import Optional
 
 def get_dataset_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_t', type=int, default=110,
+    parser.add_argument('--num_t', type=int, default=120,
                         help='Number of time steps')
-    parser.add_argument('--num_init_thetas', type=int, default=500,
+    parser.add_argument('--num_init_thetas', type=int, default=1500,
                         help='Number of initial joint angles')
-    parser.add_argument('--num_goals', type=int, default=500,
+    parser.add_argument('--num_goals', type=int, default=1000,
                         help='Number of target positions')
-    parser.add_argument('--wait_steps', type=int, default=10,
+    parser.add_argument('--wait_steps', type=int, default=20,
                         help='Wait steps after trajectory')
     parser.add_argument('--movement_duration', type=float, default=5.0,
                         help='Duration of movement')

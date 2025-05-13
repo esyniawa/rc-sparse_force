@@ -4,10 +4,27 @@ from torch.utils.data import Dataset
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import pickle
 import os
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Protocol
 from kinematics.planar_arm import PlanarArmTrajectory
+from custom_scalers import ZeroPreservingScaler
 from tqdm.auto import tqdm
 
+
+class Scaler(Protocol):
+    def fit(self, data: np.ndarray) -> None:
+        """Fit the scaler to the data."""
+        ...
+
+    def transform(self, data: np.ndarray) -> np.ndarray:
+        """Transform the data using the fitted scaler."""
+        ...
+
+    def inverse_transform(self, data: np.ndarray) -> np.ndarray:
+        """Inverse transform the data using the fitted scaler."""
+        ...
+    def fit_transform(self, data: np.ndarray) -> np.ndarray:
+        """Fit the scaler to the data and transform it."""
+        ...
 
 class PlanarArmDataset(Dataset):
     def __init__(self,
@@ -18,8 +35,9 @@ class PlanarArmDataset(Dataset):
                  wait_steps_after_trajectory: int = 10,
                  movement_duration: float = 5.0,
                  train_split: float = 0.8,
-                 coordinate_scaler: type = MinMaxScaler,
-                 angle_scaler: type = StandardScaler,
+                 coordinate_scaler: Scaler = MinMaxScaler(feature_range=(-1, 1)),
+                 angle_scaler: Scaler = ZeroPreservingScaler,
+                 velocity_scaler: Scaler = ZeroPreservingScaler,
                  save_dir: Optional[str] = None):
         """
         Initialize the dataset for the planar arm.
@@ -45,12 +63,12 @@ class PlanarArmDataset(Dataset):
         self.arm = PlanarArmTrajectory(arm=arm, num_ik_points=12, num_trajectory_points=num_t)
 
         # Initialize separate scalers for each modality
-        self.x_goal_scaler = coordinate_scaler(feature_range=(-1, 1))
-        self.y_goal_scaler = coordinate_scaler(feature_range=(-1, 1))
-        self.theta_shoulder_scaler = angle_scaler()
-        self.theta_elbow_scaler = angle_scaler()
-        self.delta_theta_shoulder_scaler = angle_scaler()
-        self.delta_theta_elbow_scaler = angle_scaler()
+        self.x_goal_scaler = coordinate_scaler
+        self.y_goal_scaler = coordinate_scaler
+        self.theta_shoulder_scaler = angle_scaler
+        self.theta_elbow_scaler = angle_scaler
+        self.delta_theta_shoulder_scaler = velocity_scaler
+        self.delta_theta_elbow_scaler = velocity_scaler
 
         # Generate or load dataset
         if save_dir and self._check_saved_data():
@@ -367,6 +385,9 @@ if __name__ == "__main__":
         movement_duration=args.movement_duration,
         train_split=args.train_split,
         save_dir=args.save_dir,
+        coordinate_scaler=MinMaxScaler(feature_range=(-1, 1)),
+        angle_scaler=MinMaxScaler(feature_range=(-1, 1)),
+        velocity_scaler=ZeroPreservingScaler(feature_range=(-1, 1)),
     )
 
     # TODO: Add method in dataset to check if data match args. If not then re-generate dataset

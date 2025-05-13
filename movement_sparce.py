@@ -11,7 +11,7 @@ def train_evaluate_sparce_arm(
         test_loader: PlanarArmDataLoader,
         num_epochs: int,
         device: torch.device,
-        weight_decay_readout: float = 1e-5,
+        weight_decay_readout: float = 1e-3,
         subset_size: int = 64,
         print_interval: Optional[int] = None,
         plot_folder: Optional[str] = None
@@ -72,26 +72,29 @@ def train_evaluate_sparce_arm(
             batch_mse = 0
 
             # Reset reservoir state
+            optimizer.zero_grad()
             model.reset_state(batch_size)
+            sequence_loss = 0
+
             for t in range(n_steps):
                 # Forward pass
                 output = model(data[:, t, :])
-
-                # Compute MSE loss
                 loss = criterion(output, target[:, t, :])
-                batch_mse += loss.item()
-
-                # Backward pass
-                optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.W_o, max_norm=1.0)
-                optimizer.step()
+                sequence_loss += loss
 
                 # Update thresholds
                 model.update_thresholds(target[:, t, :])
 
+            # Normalize loss by sequence length
+            sequence_loss = sequence_loss / n_steps
+
+            # Backward pass
+            sequence_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.W_o, max_norm=1.0)
+            optimizer.step()
+
             # Track MSE
-            total_mse += batch_mse
+            total_mse += sequence_loss
             num_batches += 1
 
             if print_interval is not None and batch_idx % print_interval == 0:
