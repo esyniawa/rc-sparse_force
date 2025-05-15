@@ -24,6 +24,13 @@ def plot_errors(train_errors: np.ndarray | List[float],
                 test_errors: np.ndarray | List[float],
                 save_name: Optional[str],
                 fig_size: Tuple[int, int] = (10, 6)):
+
+    # check if input isn't a tensor
+    if isinstance(train_errors, torch.Tensor):
+        train_errors = train_errors.detach().cpu().numpy()
+    if isinstance(test_errors, torch.Tensor):
+        test_errors = test_errors.detach().cpu().numpy()
+
     fig = plt.figure(figsize=fig_size)
     plt.plot(train_errors, label='Train', color='green', linestyle='--')
     plt.plot(test_errors, label='Test', color='blue')
